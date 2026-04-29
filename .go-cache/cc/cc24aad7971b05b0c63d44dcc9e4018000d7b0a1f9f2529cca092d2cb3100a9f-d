@@ -1,0 +1,4 @@
+./assets.go
+./auth.go
+./health.go
+./stream.go

@@ -1,0 +1,33 @@
+
+[1;31m[404] GET /favicon.ico[0m
+
+[1;31m[404] GET /src/routes/assets/[symbol]/+page.svelte[0m
+
+[1;31m[404] GET /src/routes/assets/[symbol]/+page.svelte[0m
+[2m12:06:44[22m [31m[1m[vite][22m[39m [31m[2m(ssr)[22m[39m [31mError when evaluating SSR module C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\apps\web\src\routes\api\assets\[symbol]\+server.ts: Failed to load url C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\apps\web\src\routes\api\assets\[symbol]\+server.ts (resolved id: C:/Users/balkanlenovo/Desktop/Ivır zıvır/proje/apps/web/src/routes/api/assets/[symbol]/+server.ts). Does the file exist?[39m
+      at loadAndTransform (file:///C:/Users/balkanlenovo/Desktop/Iv%C4%B1r%20z%C4%B1v%C4%B1r/proje/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:35729:17)
+      at async fetchModule (file:///C:/Users/balkanlenovo/Desktop/Iv%C4%B1r%20z%C4%B1v%C4%B1r/proje/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:46858:16)
+      at async handleInvoke (file:///C:/Users/balkanlenovo/Desktop/Iv%C4%B1r%20z%C4%B1v%C4%B1r/proje/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:39002:22)
+      at async EventEmitter.listenerForInvokeHandler (file:///C:/Users/balkanlenovo/Desktop/Iv%C4%B1r%20z%C4%B1v%C4%B1r/proje/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:39075:19)
+
+[1;31m[500] GET /api/assets/SOLUSDT[0m
+Error: Failed to load url C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\apps\web\src\routes\api\assets\[symbol]\+server.ts (resolved id: C:/Users/balkanlenovo/Desktop/Ivır zıvır/proje/apps/web/src/routes/api/assets/[symbol]/+server.ts). Does the file exist?
+    at loadAndTransform (file:///C:/Users/balkanlenovo/Desktop/Iv%C4%B1r%20z%C4%B1v%C4%B1r/proje/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:35729:17)
+    at async fetchModule (file:///C:/Users/balkanlenovo/Desktop/Iv%C4%B1r%20z%C4%B1v%C4%B1r/proje/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:46858:16)
+    at async handleInvoke (file:///C:/Users/balkanlenovo/Desktop/Iv%C4%B1r%20z%C4%B1v%C4%B1r/proje/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:39002:22)
+    at async EventEmitter.listenerForInvokeHandler (file:///C:/Users/balkanlenovo/Desktop/Iv%C4%B1r%20z%C4%B1v%C4%B1r/proje/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:39075:19)
+
+[1;31m[404] GET /assets/SOLUSDT[0m
+
+[1;31m[404] GET /assets/SOLUSDT[0m
+
+[1;31m[404] GET /assets/SOLUSDT[0m
+
+[1;31m[404] GET /assets/SOLUSDT[0m
+
+[1;31m[404] GET /assets/SOLUSDT[0m
+
+[1;31m[404] GET /assets/SOLUSDT[0m
+
+[1;31m[404] GET /assets/SOLUSDT[0m
+^C^C

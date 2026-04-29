@@ -1,0 +1,20 @@
+[31mfailed to load config from C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\apps\web\vite.config.ts[39m
+[31merror when starting dev server:
+Error: spawn EPERM
+    at ChildProcess.spawn (node:internal/child_process:420:11)
+    at Object.spawn (node:child_process:796:9)
+    at ensureServiceIsRunning (C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\node_modules\esbuild\lib\main.js:1978:29)
+    at build (C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\node_modules\esbuild\lib\main.js:1876:26)
+    at bundleConfigFile (file:///C:/Users/balkanlenovo/Desktop/Iv%C4%B1r%20z%C4%B1v%C4%B1r/proje/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:49309:24)
+    at async bundleAndLoadConfigFile (file:///C:/Users/balkanlenovo/Desktop/Iv%C4%B1r%20z%C4%B1v%C4%B1r/proje/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:49293:19)
+    at async loadConfigFromFile (file:///C:/Users/balkanlenovo/Desktop/Iv%C4%B1r%20z%C4%B1v%C4%B1r/proje/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:49257:44)
+    at async resolveConfig (file:///C:/Users/balkanlenovo/Desktop/Iv%C4%B1r%20z%C4%B1v%C4%B1r/proje/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:48752:24)
+    at async _createServer (file:///C:/Users/balkanlenovo/Desktop/Iv%C4%B1r%20z%C4%B1v%C4%B1r/proje/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:38349:66)
+    at async CAC.<anonymous> (file:///C:/Users/balkanlenovo/Desktop/Iv%C4%B1r%20z%C4%B1v%C4%B1r/proje/node_modules/vite/dist/node/cli.js:753:20)[39m
+npm error Lifecycle script `dev` failed with error:
+npm error code 1
+npm error path C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\apps\web
+npm error workspace pulsealpha-web@0.1.0
+npm error location C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\apps\web
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c vite dev --host 127.0.0.1 --port 5173

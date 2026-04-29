@@ -1,0 +1,7 @@
+interface:
+  display_name: "PulseAlpha Secure Product"
+  short_description: "Build PulseAlpha within strict security boundaries"
+  default_prompt: "Use $pulsealpha-secure-product to implement or review a PulseAlpha feature without violating its security, compliance, or product-scope constraints."
+
+policy:
+  allow_implicit_invocation: true

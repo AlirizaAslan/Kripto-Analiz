@@ -1,0 +1,11 @@
+# import config
+packagefile log=C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\apps\api\.gocache\21\21fc792b835f562ad99c55371206e9193b43601e826af77df42f28a1fa35c2a6-d
+packagefile net/http=C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\apps\api\.gocache\57\57593cb47a13e03e087b2cfc1e59d87e6bcbab99dcffb2e2887737448aad64df-d
+packagefile pulsealpha/api/internal/config=C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\apps\api\.gotmp\go-build3430563753\b189\_pkg_.a
+packagefile pulsealpha/api/internal/http/handlers=C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\apps\api\.gotmp\go-build3430563753\b191\_pkg_.a
+packagefile pulsealpha/api/internal/http/middleware=C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\apps\api\.gocache\36\36f8bb4ad8ebb128d93388de3c07b98d356a185329992b2ac1d4f15a91e1ed8f-d
+packagefile pulsealpha/api/internal/inference=C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\apps\api\.gocache\ed\edb798303f50f005d30190a141e393eedb82503bf4c7bef6f06257445f24b80c-d
+packagefile pulsealpha/api/internal/market=C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\apps\api\.gotmp\go-build3430563753\b195\_pkg_.a
+packagefile pulsealpha/api/internal/marketdata=C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\apps\api\.gocache\43\4316ecae2e5563f49e70e1dbbf68a12a8e59d46f9be254be708830353550a7f6-d
+packagefile pulsealpha/api/internal/realtime=C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\apps\api\.gocache\39\39d10e485f93884f1c0e3ad32305240d8f471394dadae9e8df06e696e43cb15b-d
+packagefile pulsealpha/api/internal/storage=C:\Users\balkanlenovo\Desktop\Ivır zıvır\proje\apps\api\.gocache\17\170ea6163d9b5a2cca9a9a7ecec5987fd6e4634722b0e3bbfe43c6f2d80c74dc-d
