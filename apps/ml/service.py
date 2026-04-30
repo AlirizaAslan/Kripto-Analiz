@@ -54,17 +54,13 @@ def weighted_average(values: list[float], weights: list[float]) -> float:
 
 
 def summarize_direction(up: float, down: float, neutral: float) -> str:
-    if up >= down and up >= neutral:
-        return "up"
-    if down >= up and down >= neutral:
-        return "down"
-    return "neutral"
+    return "up" if up >= down else "down"
 
 
 def component_direction(score: float, probability: float) -> str:
-    if abs(score) < 0.12:
-        return "neutral"
-    if score >= 0:
+    if score == 0:
+        return "up" if probability >= 0.5 else "down"
+    if score > 0:
         return "up"
     return "down"
 

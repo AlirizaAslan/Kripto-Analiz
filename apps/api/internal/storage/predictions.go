@@ -505,6 +505,11 @@ func buildHistory(rows []predictionRow, pendingRows []predictionRow, historyLimi
 			WasCorrect:         row.WasCorrect,
 			TradeAllowed:       row.TradeAllowed,
 			TradeAction:        domain.TradeAction(row.TradeAction),
+			ModelDirections:    row.ModelDirections,
+			ConsensusActive:    row.ConsensusActive,
+			ConsensusDirection: row.ConsensusDirection,
+			ConsensusStrength:  row.ConsensusStrength,
+			TradeFilterReason:  row.TradeFilterReason,
 		})
 	}
 	for _, row := range pendingRows {
@@ -520,6 +525,11 @@ func buildHistory(rows []predictionRow, pendingRows []predictionRow, historyLimi
 			WasCorrect:         false,
 			TradeAllowed:       row.TradeAllowed,
 			TradeAction:        domain.TradeAction(row.TradeAction),
+			ModelDirections:    row.ModelDirections,
+			ConsensusActive:    row.ConsensusActive,
+			ConsensusDirection: row.ConsensusDirection,
+			ConsensusStrength:  row.ConsensusStrength,
+			TradeFilterReason:  row.TradeFilterReason,
 			IsPending:          true,
 		})
 	}

@@ -161,14 +161,19 @@ type Prediction struct {
 }
 
 type PredictionHistoryItem struct {
-	PredictedDirection string      `json:"predictedDirection"`
-	RealizedDirection  string      `json:"realizedDirection"`
-	TargetCandleStart  time.Time   `json:"targetCandleStart"`
-	ConfidenceScore    float64     `json:"confidenceScore"`
-	WasCorrect         bool        `json:"wasCorrect"`
-	TradeAllowed       bool        `json:"tradeAllowed"`
-	TradeAction        TradeAction `json:"tradeAction"`
-	IsPending          bool        `json:"isPending"`
+	PredictedDirection string            `json:"predictedDirection"`
+	RealizedDirection  string            `json:"realizedDirection"`
+	TargetCandleStart  time.Time         `json:"targetCandleStart"`
+	ConfidenceScore    float64           `json:"confidenceScore"`
+	WasCorrect         bool              `json:"wasCorrect"`
+	TradeAllowed       bool              `json:"tradeAllowed"`
+	TradeAction        TradeAction       `json:"tradeAction"`
+	ModelDirections    map[string]string `json:"modelDirections"`
+	ConsensusActive    bool              `json:"consensusActive"`
+	ConsensusDirection string            `json:"consensusDirection"`
+	ConsensusStrength  string            `json:"consensusStrength"`
+	TradeFilterReason  string            `json:"tradeFilterReason"`
+	IsPending          bool              `json:"isPending"`
 }
 
 type Candle struct {

@@ -379,7 +379,10 @@ func (s *Service) buildPrediction(asset domain.Asset, depth domain.DepthSnapshot
 	if regime == domain.RegimeHighVolatility {
 		confidenceScore = round(clamp(confidenceScore-0.05, 0.2, 0.97), 4)
 	}
-	finalPredictedDirection := predictedDirection(response.UpProbability, response.DownProbability, response.NeutralProbability)
+	finalPredictedDirection := finalDirectionFromConsensus(
+		predictedDirection(response.UpProbability, response.DownProbability, response.NeutralProbability),
+		consensus,
+	)
 	tradeDecision := s.tradeDecision(asset, depth, consensus, confidenceScore, regime, finalPredictedDirection, response.ModelComponents)
 
 	prediction := domain.Prediction{
@@ -1016,13 +1019,22 @@ func fallbackPrediction(asset domain.Asset, features []domain.FeatureAttribution
 }
 
 func predictedDirection(up, down, neutral float64) string {
-	if up >= down && up >= neutral {
+	if up >= down {
 		return "up"
 	}
-	if down >= up && down >= neutral {
-		return "down"
+	return "down"
+}
+
+func finalDirectionFromConsensus(fallback string, consensus consensusSummary) string {
+	if !consensus.Active {
+		return fallback
 	}
-	return "neutral"
+	switch consensus.Direction {
+	case "up", "down":
+		return consensus.Direction
+	default:
+		return fallback
+	}
 }
 
 type trackedPrediction struct {
@@ -1030,6 +1042,10 @@ type trackedPrediction struct {
 	PredictedDirection string
 	ConfidenceScore    float64
 	ModelDirections    map[string]string
+	ConsensusActive    bool
+	ConsensusDirection string
+	ConsensusStrength  string
+	TradeFilterReason  string
 	TradeAllowed       bool
 	TradeAction        domain.TradeAction
 	ResolvedDirection  string
@@ -1086,6 +1102,10 @@ func (t *predictionTracker) recordPrediction(prediction domain.Prediction) {
 		PredictedDirection: prediction.PredictedDirection,
 		ConfidenceScore:    prediction.ConfidenceScore,
 		ModelDirections:    directions,
+		ConsensusActive:    prediction.ConsensusActive,
+		ConsensusDirection: prediction.ConsensusDirection,
+		ConsensusStrength:  prediction.ConsensusStrength,
+		TradeFilterReason:  prediction.TradeFilterReason,
 		TradeAllowed:       prediction.TradeAllowed,
 		TradeAction:        prediction.TradeAction,
 	}
@@ -1102,6 +1122,11 @@ func (t *predictionTracker) history() []domain.PredictionHistoryItem {
 			WasCorrect:         item.PredictedDirection == item.ResolvedDirection,
 			TradeAllowed:       item.TradeAllowed,
 			TradeAction:        item.TradeAction,
+			ModelDirections:    item.ModelDirections,
+			ConsensusActive:    item.ConsensusActive,
+			ConsensusDirection: item.ConsensusDirection,
+			ConsensusStrength:  item.ConsensusStrength,
+			TradeFilterReason:  item.TradeFilterReason,
 			IsPending:          false,
 		})
 	}
@@ -1276,10 +1301,13 @@ func directionalWinRates(history []domain.PredictionHistoryItem, recentWindow in
 }
 
 func componentDirection(score, probability float64) string {
-	if math.Abs(score) < 0.12 {
-		return "neutral"
+	if score == 0 {
+		if probability >= 0.5 {
+			return "up"
+		}
+		return "down"
 	}
-	if score >= 0 {
+	if score > 0 {
 		return "up"
 	}
 	return "down"
@@ -1377,7 +1405,7 @@ func buildConsensusV2(components []domain.ModelComponent) consensusSummary {
 
 	bestDirection := ""
 	bestCount := 0
-	for _, direction := range []string{"up", "down", "neutral"} {
+	for _, direction := range []string{"up", "down"} {
 		if counts[direction] > bestCount {
 			bestDirection = direction
 			bestCount = counts[direction]
@@ -1392,15 +1420,6 @@ func buildConsensusV2(components []domain.ModelComponent) consensusSummary {
 			Summary: "Model cogunlugu ayni yone bakmiyor; sistem isleme girmiyor.",
 		}
 	}
-	if bestDirection == "neutral" {
-		return consensusSummary{
-			Active:    true,
-			Direction: bestDirection,
-			Strength:  "neutral",
-			Summary:   "Model cogunlugu yatay hesapliyor; sistem isleme girmiyor.",
-		}
-	}
-
 	averageProbability := probabilitySums[bestDirection] / float64(bestCount)
 	strength := "aligned"
 	confidenceBoost := 0.04

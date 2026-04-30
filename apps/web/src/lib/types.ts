@@ -116,6 +116,11 @@ export type PredictionHistoryItem = {
 	wasCorrect: boolean;
 	tradeAllowed: boolean;
 	tradeAction: TradeAction;
+	modelDirections: Record<string, 'up' | 'down' | 'neutral' | ''>;
+	consensusActive: boolean;
+	consensusDirection: 'up' | 'down' | 'neutral' | '';
+	consensusStrength: string;
+	tradeFilterReason: string;
 	isPending: boolean;
 };
 

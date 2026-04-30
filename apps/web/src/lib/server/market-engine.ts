@@ -89,9 +89,25 @@ function probabilityFromScore(score: number, scale = 2.2) {
 	return clamp(1 / (1 + Math.exp(-score * scale)), 0.06, 0.94);
 }
 
+function directionFromProbabilities(up: number, down: number, _neutral: number): Prediction['predictedDirection'] {
+	return up >= down ? 'up' : 'down';
+}
+
+function finalDirectionFromConsensus(
+	fallback: Prediction['predictedDirection'],
+	consensusActive: boolean,
+	consensusDirection: Prediction['consensusDirection']
+): Prediction['predictedDirection'] {
+	if (!consensusActive) return fallback;
+	if (consensusDirection === 'up' || consensusDirection === 'down') {
+		return consensusDirection;
+	}
+	return fallback;
+}
+
 function componentDirection(score: number, probability: number): Prediction['predictedDirection'] {
-	if (Math.abs(score) < 0.12) return 'neutral';
-	if (score >= 0) return 'up';
+	if (score === 0) return probability >= 0.5 ? 'up' : 'down';
+	if (score > 0) return 'up';
 	return 'down';
 }
 
@@ -182,6 +198,12 @@ function findSeedBySymbol(symbol: string) {
 	return seedAssets.find((seed) => seed.symbol === symbol.toUpperCase()) ?? null;
 }
 
+function modelDirectionsFromPrediction(prediction: Prediction): PredictionHistoryItem['modelDirections'] {
+	return Object.fromEntries(
+		prediction.modelComponents.map((component) => [component.name, component.predictedDirection])
+	);
+}
+
 function buildHistoryFromDirection(direction: Prediction['predictedDirection'], asset: Asset, now: number): PredictionHistoryItem[] {
 	const currentMinuteStart = Math.floor(now / MINUTE_MS) * MINUTE_MS;
 	return Array.from({ length: 8 }, (_, index) => {
@@ -196,6 +218,11 @@ function buildHistoryFromDirection(direction: Prediction['predictedDirection'], 
 			wasCorrect: direction === realized,
 			tradeAllowed: false,
 			tradeAction: 'no_trade',
+			modelDirections: {},
+			consensusActive: false,
+			consensusDirection: '',
+			consensusStrength: '',
+			tradeFilterReason: '',
 			isPending: false
 		};
 	});
@@ -357,7 +384,6 @@ function buildTopFeatures(asset: Asset, depth: DepthSnapshot): FeatureAttributio
 function buildPrediction(asset: Asset, depth: DepthSnapshot, now: number): Prediction {
 	const topFeatures = buildTopFeatures(asset, depth);
 	const featureMap = new Map(topFeatures.map((feature) => [feature.name, feature.value]));
-	const projectedNextCandle = projectCandle(asset, Math.floor(now / MINUTE_MS) + 1);
 	const deeplobWeight = asset.signalQuality === 'full_depth' ? 0.5 : 0.34;
 	const freqaiWeight = 0.3;
 	const tlobWeight = asset.signalQuality === 'full_depth' ? 0.2 : 0.36;
@@ -445,7 +471,7 @@ function buildPrediction(asset: Asset, depth: DepthSnapshot, now: number): Predi
 		directionCounts.set(direction, (directionCounts.get(direction) ?? 0) + 1);
 		directionProbabilitySums.set(direction, (directionProbabilitySums.get(direction) ?? 0) + componentDirectionalConfidence(component, direction));
 	}
-	const consensusDirection = (['up', 'down', 'neutral'] as const).reduce<Prediction['predictedDirection'] | ''>((best, direction) => {
+	const consensusDirection = (['up', 'down'] as const).reduce<Prediction['predictedDirection'] | ''>((best, direction) => {
 		const currentCount = directionCounts.get(direction) ?? 0;
 		const bestCount = best ? (directionCounts.get(best) ?? 0) : 0;
 		return currentCount > bestCount ? direction : best;
@@ -455,17 +481,13 @@ function buildPrediction(asset: Asset, depth: DepthSnapshot, now: number): Predi
 	const averageConsensusConfidence =
 		(directionProbabilitySums.get(consensusDirection as Prediction['predictedDirection']) ?? 0) / Math.max(consensusCount, 1);
 	const consensusStrength =
-		consensusActive && consensusDirection === 'neutral'
-			? 'neutral'
-			: consensusActive && consensusCount === 3 && averageConsensusConfidence >= 0.62
-				? 'strong'
-				: consensusActive
-					? 'aligned'
-					: 'diverged';
+		consensusActive && consensusCount === 3 && averageConsensusConfidence >= 0.62
+			? 'strong'
+			: consensusActive
+				? 'aligned'
+				: 'diverged';
 	const consensusSummary = consensusActive
-		? consensusDirection === 'neutral'
-			? 'The model majority is flat, so the system blocks trade entry.'
-			: 'At least two models are aligned on the next-candle direction, so the consensus layer adds a bounded confidence boost.'
+		? 'At least two models are aligned on the next-candle direction, so the consensus layer adds a bounded confidence boost.'
 		: 'The model majority is not aligned, so the system stays guarded instead of applying a consensus boost.';
 	const confidenceBoost = consensusStrength === 'strong' ? 0.06 : consensusStrength === 'aligned' ? 0.03 : 0;
 	const hitRateBoost = consensusStrength === 'strong' ? 0.05 : consensusStrength === 'aligned' ? 0.02 : 0;
@@ -485,7 +507,12 @@ function buildPrediction(asset: Asset, depth: DepthSnapshot, now: number): Predi
 	const thresholds = tradeThresholds(asset.symbol);
 	const depthBias = Math.abs(asset.depthImbalance - 0.5);
 	const microBias = Math.abs(asset.microPriceBias);
-	const finalPredictedDirection = projectedNextCandle.direction;
+	const probabilityDirection = directionFromProbabilities(up / total, down / total, neutralBase / total);
+	const finalPredictedDirection = finalDirectionFromConsensus(
+		probabilityDirection,
+		consensusActive,
+		consensusDirection
+	);
 	const hasNeutralModel = modelComponents.some((component) => component.predictedDirection === 'neutral');
 	const allPrimaryModelsAligned =
 		consensusDirection !== '' &&
@@ -634,6 +661,11 @@ function buildHistory(asset: Asset, prediction: Prediction, now: number): Predic
 			wasCorrect: historicalPrediction.predictedDirection === realized,
 			tradeAllowed,
 			tradeAction,
+			modelDirections: modelDirectionsFromPrediction(historicalPrediction),
+			consensusActive: historicalPrediction.consensusActive,
+			consensusDirection: historicalPrediction.consensusDirection,
+			consensusStrength: historicalPrediction.consensusStrength,
+			tradeFilterReason: historicalPrediction.tradeFilterReason,
 			isPending: false
 		};
 	});
@@ -816,30 +848,23 @@ export async function getMarketOverview(): Promise<MarketOverview> {
 	if (!overview) return buildFallbackOverview();
 	if (!overview.summaries?.length || !overview.assets?.length) return buildFallbackOverview();
 
-	const liveCryptoAssets = overview.assets.filter(
-		(item) => item.market !== 'crypto' || item.signalQuality !== 'degraded'
-	);
-	const liveCryptoSummaries = overview.summaries.filter(
-		(item) => item.asset.market !== 'crypto' || item.asset.signalQuality !== 'degraded'
+	const normalizedOverview = withFallbackCrypto(overview);
+	const hasDegradedCrypto = normalizedOverview.summaries.some(
+		(item) => item.asset.market === 'crypto' && item.asset.signalQuality === 'degraded'
 	);
 
 	return {
-		...overview,
+		...normalizedOverview,
 		mode: 'api_live',
 		feedStatus:
-			liveCryptoSummaries.length === overview.summaries.length
-				? overview.feedStatus
-				: 'Binance canli veri alinamadigi icin sentetik kripto fiyatlari gizlendi.',
-		assets: liveCryptoAssets,
-		summaries: liveCryptoSummaries
+			hasDegradedCrypto
+				? `${normalizedOverview.feedStatus} Binance derinlik/REST verisi tam hazir degilse kripto semboller dusuk kalite etiketiyle gosterilir.`
+				: normalizedOverview.feedStatus
 	};
 }
 
 export async function getAssetDetail(market: Market, symbol: string): Promise<AssetDetail | null> {
 	const detail = await fetchAPI<Omit<AssetDetail, 'mode'>>(`/api/markets/${market}/symbols/${symbol}/snapshot`);
 	if (!detail) return buildFallbackDetail(market, symbol);
-	if (market === 'crypto' && detail.asset.signalQuality === 'degraded') {
-		return null;
-	}
 	return { ...detail, mode: 'api_live' };
 }

@@ -5,10 +5,14 @@
 
 	export let data: AssetDetail;
 
+	type HistoryItem = AssetDetail['predictionHistory'][number];
+
 	let detail = data;
 	let loading = false;
 	let lastError = '';
 	let refreshHandle: ReturnType<typeof setInterval> | undefined;
+	let historyPanelTab: 'history' | 'models' = 'history';
+	let currentModelDecision: HistoryItem;
 
 	function formatPrice(value: number) {
 		return new Intl.NumberFormat('tr-TR', {
@@ -33,7 +37,14 @@
 	}
 
 	function historyActionLabel(item: AssetDetail['predictionHistory'][number]) {
+		if (item.predictedDirection === 'up') return 'Al';
+		if (item.predictedDirection === 'down') return 'SAT';
 		return item.tradeAllowed ? tradeActionLabel(item.tradeAction) : 'TAHMIN';
+	}
+
+	function outcomeLabel(item: HistoryItem) {
+		if (item.isPending) return 'Bekleniyor';
+		return item.wasCorrect ? 'Dogru' : 'Yanlis';
 	}
 
 	function tradeActionLabel(value: AssetDetail['prediction']['tradeAction']) {
@@ -97,15 +108,52 @@
 		return 'Bekleniyor';
 	}
 
+	function predictionModelDirections(): HistoryItem['modelDirections'] {
+		return Object.fromEntries(
+			detail.prediction.modelComponents.map((component) => [
+				component.name,
+				component.predictedDirection
+			])
+		);
+	}
+
+	function modelDirectionEntries(item: HistoryItem) {
+		const modelOrder = detail.prediction.modelComponents.map((component) => component.name);
+		const seen = new Set<string>();
+		const entries: { name: string; direction: HistoryItem['predictedDirection'] | '' }[] = [];
+		const directions = item.modelDirections ?? {};
+
+		for (const name of modelOrder) {
+			seen.add(name);
+			entries.push({ name, direction: directions[name] ?? '' });
+		}
+
+		for (const [name, direction] of Object.entries(directions)) {
+			if (!seen.has(name)) entries.push({ name, direction });
+		}
+
+		return entries;
+	}
+
+	function consensusStatusText(item: HistoryItem) {
+		if (item.consensusActive) return `Ortak karar: ${directionLabel(item.consensusDirection)}`;
+		return 'Ortak karar yok';
+	}
+
+	function consensusReasonText(item: HistoryItem) {
+		return item.tradeFilterReason || 'Modeller ayni yonde yeterli cogunluk olusturmadi.';
+	}
+
+	function modelOutcomeText(item: HistoryItem, direction: HistoryItem['predictedDirection'] | '') {
+		if (item.isPending || !item.realizedDirection || !direction) return 'Bekleniyor';
+		return direction === item.realizedDirection ? 'Dogru' : 'Yanlis';
+	}
+
 	$: orderedHistory = [...detail.predictionHistory].sort(
 		(left, right) => new Date(right.targetCandleStart).getTime() - new Date(left.targetCandleStart).getTime()
 	);
-	$: executableHistory = orderedHistory.filter(
-		(item) => item.tradeAllowed && item.predictedDirection !== 'neutral'
-	);
-	$: nonNeutralHistory = orderedHistory.filter((item) => item.predictedDirection !== 'neutral');
-	$: displayedHistory = executableHistory.length ? executableHistory : nonNeutralHistory;
-	$: historyLabel = executableHistory.length ? 'Son acilan islemler' : 'Son yonlu tahminler';
+	$: displayedHistory = orderedHistory;
+	$: historyLabel = 'Son hedef mum tahminleri';
 	$: resolvedHistory = detail.predictionHistory.filter((item) => !item.isPending);
 	$: accuracySampleSize = detail.accuracy.sampleSize || resolvedHistory.length;
 	$: hasAccuracySample = accuracySampleSize > 0;
@@ -113,7 +161,7 @@
 		(item) => item.targetCandleStart === detail.prediction.targetCandleStart
 	);
 	$: liveTradePreview =
-		detail.prediction.tradeAllowed && !hasCurrentHistoryItem
+		!hasCurrentHistoryItem
 			? {
 					targetCandleStart: detail.prediction.targetCandleStart,
 					predictedDirection: detail.prediction.predictedDirection,
@@ -122,9 +170,32 @@
 					wasCorrect: false,
 					tradeAllowed: true,
 					tradeAction: detail.prediction.tradeAction,
+					modelDirections: predictionModelDirections(),
+					consensusActive: detail.prediction.consensusActive,
+					consensusDirection: detail.prediction.consensusDirection,
+					consensusStrength: detail.prediction.consensusStrength,
+					tradeFilterReason: detail.prediction.tradeFilterReason,
 					isPending: true
 				}
 			: null;
+	$: currentModelDecision = {
+		targetCandleStart: detail.prediction.targetCandleStart,
+		predictedDirection: detail.prediction.predictedDirection,
+		realizedDirection: '',
+		confidenceScore: detail.prediction.confidenceScore,
+		wasCorrect: false,
+		tradeAllowed: detail.prediction.tradeAllowed,
+		tradeAction: detail.prediction.tradeAction,
+		modelDirections: predictionModelDirections(),
+		consensusActive: detail.prediction.consensusActive,
+		consensusDirection: detail.prediction.consensusDirection,
+		consensusStrength: detail.prediction.consensusStrength,
+		tradeFilterReason: detail.prediction.tradeFilterReason,
+		isPending: true
+	};
+	$: modelDecisionHistory = displayedHistory.filter(
+		(item) => item.targetCandleStart !== currentModelDecision.targetCandleStart
+	);
 
 	async function refresh() {
 		loading = true;
@@ -249,25 +320,106 @@
 				<div><span>Islem ornek</span><strong>{detail.accuracy.tradeSampleSize}</strong></div>
 			</div>
 
-			<div class="history-list scroll-list">
-				<p class="column-label">{historyLabel}</p>
-				{#if liveTradePreview || displayedHistory.length}
-					{#if liveTradePreview}
-						<div class="history-row pending-row">
-							<span>{new Date(liveTradePreview.targetCandleStart).toLocaleTimeString('tr-TR')}</span>
-							<span>{tradeActionLabel(liveTradePreview.tradeAction)} / {directionLabel(liveTradePreview.predictedDirection)} -> Bekleniyor</span>
-							<span class="neutral">Acik islem</span>
-						</div>
-					{/if}
-					{#each displayedHistory as item}
-						<div class="history-row" class:pending-row={item.isPending}>
-							<span>{new Date(item.targetCandleStart).toLocaleTimeString('tr-TR')}</span>
-							<span>{historyActionLabel(item)} / {directionLabel(item.predictedDirection)} -> {directionLabel(tradeResultDirection(item))}</span>
-							<span class:good={item.wasCorrect && !item.isPending} class:bad={!item.wasCorrect && !item.isPending} class:neutral={item.isPending}>{item.isPending ? 'Acik islem' : item.wasCorrect ? 'Dogru' : 'Kacirdi'}</span>
-						</div>
-					{/each}
+			<div class="history-panel">
+				<div class="panel-tabs" role="tablist" aria-label="Tahmin paneli">
+					<button
+						type="button"
+						class:active={historyPanelTab === 'history'}
+						on:click={() => (historyPanelTab = 'history')}
+					>
+						Tahmin Gecmisi
+					</button>
+					<button
+						type="button"
+						class:active={historyPanelTab === 'models'}
+						on:click={() => (historyPanelTab = 'models')}
+					>
+						Model Kararlari
+					</button>
+				</div>
+
+				{#if historyPanelTab === 'history'}
+					<div class="history-list scroll-list">
+						<p class="column-label">{historyLabel}</p>
+						{#if liveTradePreview || displayedHistory.length}
+							{#if liveTradePreview}
+								<div class="history-row pending-row">
+									<span>{new Date(liveTradePreview.targetCandleStart).toLocaleTimeString('tr-TR')}</span>
+									<span>{historyActionLabel(liveTradePreview)}</span>
+									<span class="neutral">Bekleniyor</span>
+								</div>
+							{/if}
+							{#each displayedHistory as item}
+								<div class="history-row" class:pending-row={item.isPending}>
+									<span>{new Date(item.targetCandleStart).toLocaleTimeString('tr-TR')}</span>
+									<span>{historyActionLabel(item)}</span>
+									<span class:good={item.wasCorrect && !item.isPending} class:bad={!item.wasCorrect && !item.isPending} class:neutral={item.isPending}>{outcomeLabel(item)}</span>
+								</div>
+							{/each}
+						{:else}
+							<div class="history-empty">Henuz hedef mum tahmini yok.</div>
+						{/if}
+					</div>
 				{:else}
-					<div class="history-empty">Henuz acik veya kapanmis islem yok.</div>
+					<div class="model-decision-list scroll-list">
+						<p class="column-label">Guncel ve gecmis model kararlari</p>
+
+						<div class="model-decision-card current">
+							<div class="model-decision-head">
+								<div>
+									<span>Guncel hedef mum</span>
+									<strong>{new Date(currentModelDecision.targetCandleStart).toLocaleTimeString('tr-TR')}</strong>
+								</div>
+								<div>
+									<span>Nihai tahmin</span>
+									<strong class:up={currentModelDecision.predictedDirection === 'up'} class:down={currentModelDecision.predictedDirection === 'down'} class:neutral={currentModelDecision.predictedDirection === 'neutral'}>{directionLabel(currentModelDecision.predictedDirection)}</strong>
+								</div>
+								<div>
+									<span>Consensus</span>
+									<strong>{consensusStatusText(currentModelDecision)}</strong>
+								</div>
+							</div>
+							<div class="model-chip-grid">
+								{#each modelDirectionEntries(currentModelDecision) as model}
+									<div class="model-chip">
+										<span>{model.name}</span>
+										<strong class:up={model.direction === 'up'} class:down={model.direction === 'down'} class:neutral={model.direction === 'neutral' || model.direction === ''}>{directionLabel(model.direction)}</strong>
+										<small>{modelOutcomeText(currentModelDecision, model.direction)}</small>
+									</div>
+								{/each}
+							</div>
+							<p>{consensusReasonText(currentModelDecision)}</p>
+						</div>
+
+						{#each modelDecisionHistory as item}
+							<div class="model-decision-card" class:pending-row={item.isPending}>
+								<div class="model-decision-head">
+									<div>
+										<span>Hedef mum</span>
+										<strong>{new Date(item.targetCandleStart).toLocaleTimeString('tr-TR')}</strong>
+									</div>
+									<div>
+										<span>Nihai tahmin</span>
+										<strong class:up={item.predictedDirection === 'up'} class:down={item.predictedDirection === 'down'} class:neutral={item.predictedDirection === 'neutral'}>{directionLabel(item.predictedDirection)}</strong>
+									</div>
+									<div>
+										<span>Consensus</span>
+										<strong>{consensusStatusText(item)}</strong>
+									</div>
+								</div>
+								<div class="model-chip-grid">
+									{#each modelDirectionEntries(item) as model}
+										<div class="model-chip">
+											<span>{model.name}</span>
+											<strong class:up={model.direction === 'up'} class:down={model.direction === 'down'} class:neutral={model.direction === 'neutral' || model.direction === ''}>{directionLabel(model.direction)}</strong>
+											<small class:good={modelOutcomeText(item, model.direction) === 'Dogru'} class:bad={modelOutcomeText(item, model.direction) === 'Yanlis'} class:neutral={modelOutcomeText(item, model.direction) === 'Bekleniyor'}>{modelOutcomeText(item, model.direction)}</small>
+										</div>
+									{/each}
+								</div>
+								<p>{consensusReasonText(item)}</p>
+							</div>
+						{/each}
+					</div>
 				{/if}
 			</div>
 		</article>
@@ -342,6 +494,30 @@
 	.stat-grid div, .accuracy-grid div, .feature-card, .watchlist-note { padding: 16px; border-radius: 18px; background: #f7f9fc; border: 1px solid #e7edf5; }
 	.feature-list, .history-list { margin-top: 16px; }
 	.feature-card, .history-row { background: #f7f9fc; border: 1px solid #e7edf5; border-radius: 16px; padding: 14px; }
+	.history-panel { margin-top: 16px; }
+	.panel-tabs {
+		display: inline-flex;
+		gap: 6px;
+		padding: 6px;
+		border-radius: 14px;
+		background: #eef3f8;
+		border: 1px solid #dfe7f1;
+	}
+	.panel-tabs button {
+		border: 0;
+		border-radius: 10px;
+		background: transparent;
+		color: #637389;
+		cursor: pointer;
+		font: inherit;
+		font-weight: 700;
+		padding: 9px 12px;
+	}
+	.panel-tabs button.active {
+		background: #ffffff;
+		color: #162131;
+		box-shadow: 0 6px 18px rgba(109, 134, 163, 0.12);
+	}
 	.history-list { display: grid; gap: 10px; }
 	.history-empty {
 		padding: 14px;
@@ -364,6 +540,49 @@
 		border-radius: 999px;
 	}
 	.history-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+	.model-decision-list {
+		display: grid;
+		gap: 12px;
+		margin-top: 16px;
+	}
+	.model-decision-card {
+		display: grid;
+		gap: 12px;
+		padding: 16px;
+		border-radius: 18px;
+		background: #f7f9fc;
+		border: 1px solid #e7edf5;
+	}
+	.model-decision-card.current {
+		background: linear-gradient(180deg, #fbfdff 0%, #f5f9ff 100%);
+		border-color: #d8e5f3;
+	}
+	.model-decision-head, .model-chip-grid {
+		display: grid;
+		gap: 10px;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+	.model-decision-head span, .model-chip span {
+		display: block;
+		margin-bottom: 6px;
+		color: #748397;
+		font-size: 0.82rem;
+	}
+	.model-chip {
+		padding: 12px;
+		border-radius: 14px;
+		background: #ffffff;
+		border: 1px solid #e4ebf4;
+	}
+	.model-chip small {
+		display: block;
+		margin-top: 8px;
+		font-weight: 700;
+	}
+	.model-decision-card p {
+		color: #5e6c80;
+		line-height: 1.5;
+	}
 	.pending-row {
 		border-style: dashed;
 		background: #f5f9ff;
@@ -440,7 +659,7 @@
 	.narrative, .summary, .disclaimer, .watchlist-note p, .view-note { line-height: 1.6; color: #5e6c80; }
 	.error-banner { margin-top: 18px; padding: 12px 14px; border-radius: 14px; background: rgba(229, 95, 97, 0.12); color: #a33a3b; }
 	@media (max-width: 760px) {
-		.stat-grid, .accuracy-grid, .history-row { grid-template-columns: 1fr; }
+		.stat-grid, .accuracy-grid, .history-row, .model-decision-head, .model-chip-grid { grid-template-columns: 1fr; }
 		.panel-head, .feature-head { flex-direction: column; align-items: flex-start; }
 	}
 </style>
