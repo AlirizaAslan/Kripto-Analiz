@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: pulsealpha-api
+    ports:
+      - "8080:8080"
+    volumes:
+      - api_data:/app/data
+    environment:
+      - PULSEALPHA_ENV=production
+      - PULSEALPHA_HTTP_ADDR=:8080
+      - PULSEALPHA_DB_PATH=/app/data/pulsealpha.db
+      # Update with your domain if deploying to production
+      - PULSEALPHA_ALLOWED_ORIGINS=http://localhost:3000
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: pulsealpha-web
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PULSEALPHA_API_BASE_URL=http://api:8080
+      # You can override this dynamically if you serve the app differently
+      - PUBLIC_API_URL=http://localhost:8080
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  api_data:

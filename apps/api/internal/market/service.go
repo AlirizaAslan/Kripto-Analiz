@@ -70,43 +70,19 @@ func NewService(client *inference.Client, provider *marketdata.BinanceProvider, 
 
 func (s *Service) Overview() domain.MarketOverview {
 	now := time.Now().UTC()
-	assets := make([]domain.Asset, 0, len(catalog)+6)
-	summaries := make([]domain.AssetSummary, 0, len(catalog)+6)
-	for _, seed := range catalog {
-		asset, _, prediction := s.buildSnapshot(seed, now)
-		candles := buildCandles(asset, now, 30)
-		prediction, _, accuracy := s.applyTrackedAccuracy(asset, domain.DepthSnapshot{}, prediction, candles)
-		miniCandles := trimCandles(candles, 12)
-		assets = append(assets, asset)
-		summaries = append(summaries, domain.AssetSummary{
-			Asset:            asset,
-			MiniCandles:      miniCandles,
-			Accuracy:         accuracy,
-			LatestPrediction: prediction,
-		})
-	}
+	assets := make([]domain.Asset, 0, 10)
+	summaries := make([]domain.AssetSummary, 0, 10)
 
 	if s.provider != nil && s.provider.Enabled() {
 		for _, instrument := range s.provider.Instruments() {
 			snapshot, err := s.provider.Snapshot(instrument.Symbol)
 			if err != nil {
-				asset, depth, prediction, miniCandles := s.buildCryptoPlaceholderSnapshot(instrument, now)
-				prediction, history, accuracy := s.applyTrackedAccuracy(asset, depth, prediction, miniCandles)
-				assets = append(assets, asset)
-				summaries = append(summaries, domain.AssetSummary{
-					Asset:            asset,
-					MiniCandles:      miniCandles,
-					Accuracy:         accuracy,
-					LatestPrediction: prediction,
-				})
-				_ = depth
-				_ = history
 				continue
 			}
 			asset, depth, prediction := s.buildCryptoSnapshot(snapshot, now)
 			candles := trimCandles(snapshot.Candles, 60)
 			if len(candles) == 0 {
-				candles = buildCandles(asset, now, 30)
+				continue
 			}
 			prediction, _, accuracy := s.applyTrackedAccuracy(asset, depth, prediction, candles)
 			miniCandles := trimCandles(candles, 12)
@@ -117,7 +93,6 @@ func (s *Service) Overview() domain.MarketOverview {
 				Accuracy:         accuracy,
 				LatestPrediction: prediction,
 			})
-			_ = depth
 		}
 	}
 
@@ -125,13 +100,13 @@ func (s *Service) Overview() domain.MarketOverview {
 		return assets[i].ConfidenceScore > assets[j].ConfidenceScore
 	})
 
-	status := "Sentetik piyasa üreticisi aktif. Canlı DeepLOB + FreqAI derinlik tahminleri için provider ve inference servislerini yapılandırın."
-	if s.provider != nil && s.provider.Enabled() && s.inference != nil && s.inference.Enabled() {
-		status = "Kripto semboller için canlı Binance derinlik verisi ve inference servisi bağlı."
-	} else if s.provider != nil && s.provider.Enabled() {
-		status = "Kripto semboller için canlı Binance derinlik verisi aktif; tahmin fallback katmanı hazır."
-	} else if s.inference != nil && s.inference.Enabled() {
-		status = "Inference servisi bağlı. Piyasa akışı provider destekli DeepLOB + FreqAI tahmin akışı için hazır."
+	status := "Kripto semboller için canlı Binance derinlik verisi bekleniyor."
+	if len(assets) > 0 {
+		if s.inference != nil && s.inference.Enabled() {
+			status = "Kripto semboller için canlı Binance derinlik verisi ve yapay zeka servisi aktif."
+		} else {
+			status = "Kripto semboller için canlı Binance derinlik verisi aktif, yapay zeka fallback devrede."
+		}
 	}
 
 	return domain.MarketOverview{
@@ -150,60 +125,25 @@ func (s *Service) Overview() domain.MarketOverview {
 }
 
 func (s *Service) Snapshot(market domain.Market, symbol string) (domain.SymbolSnapshot, error) {
-	if market == domain.MarketCrypto {
-		if s.provider == nil || !s.provider.Enabled() {
-			return domain.SymbolSnapshot{}, errors.New("crypto provider not configured")
-		}
-		now := time.Now().UTC()
-		live, err := s.provider.Snapshot(symbol)
-		if err != nil {
-			instrument, ok := s.findCryptoInstrument(symbol)
-			if !ok {
-				return domain.SymbolSnapshot{}, err
-			}
-			asset, depth, prediction, candles := s.buildCryptoPlaceholderSnapshot(instrument, now)
-			prediction, history, accuracy := s.applyTrackedAccuracy(asset, depth, prediction, candles)
-			return domain.SymbolSnapshot{
-				GeneratedAt:       now,
-				Asset:             asset,
-				Depth:             depth,
-				Prediction:        prediction,
-				Candles:           candles,
-				ChartCandles:      fallbackChartCandles(candles),
-				PredictionHistory: history,
-				Accuracy:          accuracy,
-				WatchlistNote:     asset.Symbol + " izleme listesine eklenebilir, ancak sistem yalnızca karar-destek amaçlıdır ve otomatik işlem yapmaz.",
-				Disclaimer:        disclaimer,
-			}, nil
-		}
-		asset, depth, prediction := s.buildCryptoSnapshot(live, now)
-		candles := trimCandles(live.Candles, 30)
-		if len(candles) == 0 {
-			candles = buildCandles(asset, now, 30)
-		}
-		prediction, history, accuracy := s.applyTrackedAccuracy(asset, depth, prediction, candles)
-		return domain.SymbolSnapshot{
-			GeneratedAt:       now,
-			Asset:             asset,
-			Depth:             depth,
-			Prediction:        prediction,
-			Candles:           candles,
-			ChartCandles:      ensureChartCandles(live.ChartCandles, candles),
-			PredictionHistory: history,
-			Accuracy:          accuracy,
-			WatchlistNote:     asset.Symbol + " izleme listesine eklenebilir, ancak sistem yalnızca karar-destek amaçlıdır ve otomatik işlem yapmaz.",
-			Disclaimer:        disclaimer,
-		}, nil
+	if market != domain.MarketCrypto {
+		return domain.SymbolSnapshot{}, errors.New("unsupported market")
 	}
-
-	seed, ok := findSeed(market, symbol)
-	if !ok {
-		return domain.SymbolSnapshot{}, errors.New("symbol not found")
+	if s.provider == nil || !s.provider.Enabled() {
+		return domain.SymbolSnapshot{}, errors.New("crypto provider not configured")
 	}
 
 	now := time.Now().UTC()
-	asset, depth, prediction := s.buildSnapshot(seed, now)
-	candles := buildCandles(asset, now, 30)
+	live, err := s.provider.Snapshot(symbol)
+	if err != nil {
+		return domain.SymbolSnapshot{}, err
+	}
+
+	asset, depth, prediction := s.buildCryptoSnapshot(live, now)
+	candles := trimCandles(live.Candles, 30)
+	if len(candles) == 0 {
+		return domain.SymbolSnapshot{}, errors.New("no live candles available")
+	}
+
 	prediction, history, accuracy := s.applyTrackedAccuracy(asset, depth, prediction, candles)
 
 	return domain.SymbolSnapshot{
@@ -212,7 +152,7 @@ func (s *Service) Snapshot(market domain.Market, symbol string) (domain.SymbolSn
 		Depth:             depth,
 		Prediction:        prediction,
 		Candles:           candles,
-		ChartCandles:      fallbackChartCandles(candles),
+		ChartCandles:      ensureChartCandles(live.ChartCandles, candles),
 		PredictionHistory: history,
 		Accuracy:          accuracy,
 		WatchlistNote:     asset.Symbol + " izleme listesine eklenebilir, ancak sistem yalnızca karar-destek amaçlıdır ve otomatik işlem yapmaz.",
@@ -423,7 +363,6 @@ func (s *Service) applyTrackedAccuracy(asset domain.Asset, depth domain.DepthSna
 			history, accuracy, componentRates, summaryErr := s.store.Summary(asset.Symbol, 5, 120)
 			if summaryErr == nil {
 				history = reconcileHistoryWithCandles(history, candles)
-				accuracy = buildAccuracySummary(history, 5)
 				for index := range prediction.ModelComponents {
 					if rates, ok := componentRates[prediction.ModelComponents[index].Name]; ok {
 						prediction.ModelComponents[index].HistoricalHitRate = rates.HistoricalHitRate
@@ -1415,16 +1354,16 @@ func buildConsensusV2(components []domain.ModelComponent) consensusSummary {
 	if bestDirection == "" {
 		return consensusSummary{Summary: "Model yonu olusmadi; consensus pas geciliyor."}
 	}
-	if bestCount < 2 {
+	if bestCount < 3 {
 		return consensusSummary{
-			Summary: "Model cogunlugu ayni yone bakmiyor; sistem isleme girmiyor.",
+			Summary: "Tum modeller ayni yone bakmiyor; sistem isleme girmiyor.",
 		}
 	}
 	averageProbability := probabilitySums[bestDirection] / float64(bestCount)
 	strength := "aligned"
 	confidenceBoost := 0.04
 	hitRateBoost := 0.03
-	if bestCount == 3 && averageProbability >= 0.62 {
+	if averageProbability >= 0.62 {
 		strength = "strong"
 		confidenceBoost = 0.06
 		hitRateBoost = 0.05
@@ -1434,7 +1373,7 @@ func buildConsensusV2(components []domain.ModelComponent) consensusSummary {
 		Active:          true,
 		Direction:       bestDirection,
 		Strength:        strength,
-		Summary:         "En az iki model ayni yone bakiyor; consensus katmani sinirli bir guven artisi ekliyor.",
+		Summary:         "Uc model de ayni yone bakiyor; consensus katmani yuksek bir guven artisi ekliyor.",
 		ConfidenceBoost: confidenceBoost,
 		HitRateBoost:    hitRateBoost,
 	}
