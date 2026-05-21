@@ -37,9 +37,10 @@
 	}
 
 	function historyActionLabel(item: AssetDetail['predictionHistory'][number]) {
-		if (item.predictedDirection === 'up') return 'Al';
+		if (!item.tradeAllowed) return 'TAHMIN';
+		if (item.predictedDirection === 'up') return 'AL';
 		if (item.predictedDirection === 'down') return 'SAT';
-		return item.tradeAllowed ? tradeActionLabel(item.tradeAction) : 'TAHMIN';
+		return tradeActionLabel(item.tradeAction);
 	}
 
 	function outcomeLabel(item: HistoryItem) {
@@ -92,6 +93,7 @@
 	}
 
 	function consensusTradeLabel() {
+		if (!detail.prediction.tradeAllowed) return 'ISLEM YOK';
 		if (detail.prediction.tradeAction === 'buy') return 'AL';
 		if (detail.prediction.tradeAction === 'sell') return 'SAT';
 		return 'ISLEM YOK';

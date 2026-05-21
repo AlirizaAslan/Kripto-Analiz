@@ -140,11 +140,11 @@ function finalDirectionFromConsensus(
 	consensusActive: boolean,
 	consensusDirection: Prediction['consensusDirection']
 ): Prediction['predictedDirection'] {
-	if (!consensusActive) return fallback;
+	if (!consensusActive) return 'neutral';
 	if (consensusDirection === 'up' || consensusDirection === 'down') {
 		return consensusDirection;
 	}
-	return fallback;
+	return 'neutral';
 }
 
 function componentDirection(score: number, probability: number): Prediction['predictedDirection'] {

@@ -1004,13 +1004,13 @@ func predictedDirection(up, down, neutral float64) string {
 
 func finalDirectionFromConsensus(fallback string, consensus consensusSummary) string {
 	if !consensus.Active {
-		return fallback
+		return "neutral"
 	}
 	switch consensus.Direction {
 	case "up", "down":
 		return consensus.Direction
 	default:
-		return fallback
+		return "neutral"
 	}
 }
 
