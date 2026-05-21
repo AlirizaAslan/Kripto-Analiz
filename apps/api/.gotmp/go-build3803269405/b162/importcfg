@@ -1,0 +1,9 @@
+# import config
+packagefile internal/abi=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b006\_pkg_.a
+packagefile internal/goarch=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b007\_pkg_.a
+packagefile internal/stringslite=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b030\_pkg_.a
+packagefile internal/sync=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b042\_pkg_.a
+packagefile runtime=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b010\_pkg_.a
+packagefile sync=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b041\_pkg_.a
+packagefile sync/atomic=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b043\_pkg_.a
+packagefile weak=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b120\_pkg_.a

@@ -37,10 +37,18 @@
 	}
 
 	function historyActionLabel(item: AssetDetail['predictionHistory'][number]) {
-		if (!item.tradeAllowed) return 'TAHMIN';
 		if (item.predictedDirection === 'up') return 'AL';
 		if (item.predictedDirection === 'down') return 'SAT';
 		return tradeActionLabel(item.tradeAction);
+	}
+
+	function shouldShowInHistoryPreview() {
+		return (
+			detail.prediction.consensusActive &&
+			(detail.prediction.consensusDirection === 'up' || detail.prediction.consensusDirection === 'down') &&
+			detail.prediction.predictedDirection === detail.prediction.consensusDirection &&
+			(detail.prediction.tradeAction === 'buy' || detail.prediction.tradeAction === 'sell')
+		);
 	}
 
 	function outcomeLabel(item: HistoryItem) {
@@ -103,6 +111,40 @@
 		return detail.prediction.tradeFilterReason || detail.prediction.consensusSummary || 'Ortak islem sinyali bekleniyor.';
 	}
 
+	function predictionHeadlineLabel() {
+		if (detail.prediction.tradeAction === 'buy') return 'AL';
+		if (detail.prediction.tradeAction === 'sell') return 'SAT';
+		if (detail.prediction.predictedDirection === 'up') return 'AL ADAYI';
+		if (detail.prediction.predictedDirection === 'down') return 'SAT ADAYI';
+		return 'BEKLE';
+	}
+
+	function predictionHeadlineClass() {
+		if (detail.prediction.tradeAction === 'buy') return 'up';
+		if (detail.prediction.tradeAction === 'sell') return 'down';
+		if (detail.prediction.predictedDirection === 'up') return 'up';
+		if (detail.prediction.predictedDirection === 'down') return 'down';
+		return 'neutral';
+	}
+
+	function modelActionLabel(direction: AssetDetail['prediction']['predictedDirection']) {
+		if (direction === 'up') return 'AL';
+		if (direction === 'down') return 'SAT';
+		return 'BEKLE';
+	}
+
+	function modelActionClass(direction: AssetDetail['prediction']['predictedDirection']) {
+		if (direction === 'up') return 'up';
+		if (direction === 'down') return 'down';
+		return 'neutral';
+	}
+
+	function modelDecisionSummary() {
+		return detail.prediction.modelComponents
+			.map((component) => `${component.name}: ${modelActionLabel(component.predictedDirection)}`)
+			.join(' | ');
+	}
+
 	function consensusWinRateText() {
 		if (detail.accuracy.consensusSampleSize > 0) {
 			return formatRate(detail.accuracy.consensusWinRate);
@@ -163,7 +205,7 @@
 		(item) => item.targetCandleStart === detail.prediction.targetCandleStart
 	);
 	$: liveTradePreview =
-		!hasCurrentHistoryItem
+		!hasCurrentHistoryItem && shouldShowInHistoryPreview()
 			? {
 					targetCandleStart: detail.prediction.targetCandleStart,
 					predictedDirection: detail.prediction.predictedDirection,
@@ -231,7 +273,12 @@
 </svelte:head>
 
 <div class="detail-shell">
-	<a class="back" href="/">Piyasa ozetine don</a>
+	<div class="page-links">
+		<a class="back" href="/">Piyasa ozetine don</a>
+		<a class="stats-link" href={`/statistics/${detail.asset.market}/${detail.asset.symbol}`}>
+			Ayrintili istatistikleri ac
+		</a>
+	</div>
 
 	<section class="headline">
 		<div>
@@ -267,6 +314,14 @@
 				</div>
 			{/if}
 
+			<div class={`prediction-banner ${predictionHeadlineClass()}`}>
+				<div>
+					<span>Sonraki 1 dakikalik tahmin</span>
+					<strong>{predictionHeadlineLabel()}</strong>
+				</div>
+				<p>{consensusTradeNote()}</p>
+			</div>
+
 			<div class="trade-callout" class:up={detail.prediction.tradeAction === 'buy'} class:down={detail.prediction.tradeAction === 'sell'} class:neutral={detail.prediction.predictedDirection === 'neutral'} class:inactive={!detail.prediction.tradeAllowed}>
 				<div>
 					<span>Ortak islem</span>
@@ -274,6 +329,19 @@
 				</div>
 				<p>{consensusTradeNote()}</p>
 			</div>
+
+			<details class="prediction-details">
+				<summary>Daha detayli tahmini goster</summary>
+				<div class="prediction-detail-grid">
+					<div><span>Final yon</span><strong>{directionLabel(detail.prediction.predictedDirection)}</strong></div>
+					<div><span>Guven skoru</span><strong>{Math.round(detail.prediction.confidenceScore * 100)}%</strong></div>
+					<div><span>Yukselis olasiligi</span><strong>{Math.round(detail.prediction.upProbability * 100)}%</strong></div>
+					<div><span>Dusus olasiligi</span><strong>{Math.round(detail.prediction.downProbability * 100)}%</strong></div>
+					<div><span>Yatay olasilik</span><strong>{Math.round(detail.prediction.neutralProbability * 100)}%</strong></div>
+					<div><span>Risk etiketi</span><strong>{detail.prediction.riskLabel}</strong></div>
+				</div>
+				<p class="prediction-explanation">{detail.prediction.explanation}</p>
+			</details>
 		</article>
 
 		<article class="panel">
@@ -294,6 +362,24 @@
 			</div>
 
 			<p class="narrative">{consensusTradeNote()}</p>
+			<div class="model-signal-grid">
+				{#each detail.prediction.modelComponents as component}
+					<div class="model-signal-card">
+						<div class="feature-head">
+							<strong>{component.name}</strong>
+							<span class={`model-badge ${modelActionClass(component.predictedDirection)}`}>
+								{modelActionLabel(component.predictedDirection)}
+							</span>
+						</div>
+						<p>{component.summary}</p>
+						<div class="model-meta-row">
+							<span>Olasilik {Math.round(component.probability * 100)}%</span>
+							<span>Gecmis {formatRate(component.historicalHitRate)}</span>
+							<span>Son seri {formatRate(component.recentWinRate)}</span>
+						</div>
+					</div>
+				{/each}
+			</div>
 			<p class="disclaimer">{detail.disclaimer}</p>
 		</article>
 	</section>
@@ -303,7 +389,7 @@
 			<div class="panel-head">
 				<div>
 					<p class="eyebrow">Model dogrulugu</p>
-					<h2>Ayrintili performans paneli</h2>
+					<h2>Istatistik ozeti</h2>
 				</div>
 			</div>
 
@@ -322,107 +408,21 @@
 				<div><span>Islem ornek</span><strong>{detail.accuracy.tradeSampleSize}</strong></div>
 			</div>
 
-			<div class="history-panel">
-				<div class="panel-tabs" role="tablist" aria-label="Tahmin paneli">
-					<button
-						type="button"
-						class:active={historyPanelTab === 'history'}
-						on:click={() => (historyPanelTab = 'history')}
-					>
-						Tahmin Gecmisi
-					</button>
-					<button
-						type="button"
-						class:active={historyPanelTab === 'models'}
-						on:click={() => (historyPanelTab = 'models')}
-					>
-						Model Kararlari
-					</button>
+			<div class="stats-callout">
+				<div>
+					<span>Detayli analiz</span>
+					<strong>Saatlik dogruluk, hacim ve kalici tahmin gecmisi</strong>
 				</div>
-
-				{#if historyPanelTab === 'history'}
-					<div class="history-list scroll-list">
-						<p class="column-label">{historyLabel}</p>
-						{#if liveTradePreview || displayedHistory.length}
-							{#if liveTradePreview}
-								<div class="history-row pending-row">
-									<span>{new Date(liveTradePreview.targetCandleStart).toLocaleTimeString('tr-TR')}</span>
-									<span>{historyActionLabel(liveTradePreview)}</span>
-									<span class="neutral">Bekleniyor</span>
-								</div>
-							{/if}
-							{#each displayedHistory as item}
-								<div class="history-row" class:pending-row={item.isPending}>
-									<span>{new Date(item.targetCandleStart).toLocaleTimeString('tr-TR')}</span>
-									<span>{historyActionLabel(item)}</span>
-									<span class:good={item.wasCorrect && !item.isPending} class:bad={!item.wasCorrect && !item.isPending} class:neutral={item.isPending}>{outcomeLabel(item)}</span>
-								</div>
-							{/each}
-						{:else}
-							<div class="history-empty">Henuz hedef mum tahmini yok.</div>
-						{/if}
-					</div>
-				{:else}
-					<div class="model-decision-list scroll-list">
-						<p class="column-label">Guncel ve gecmis model kararlari</p>
-
-						<div class="model-decision-card current">
-							<div class="model-decision-head">
-								<div>
-									<span>Guncel hedef mum</span>
-									<strong>{new Date(currentModelDecision.targetCandleStart).toLocaleTimeString('tr-TR')}</strong>
-								</div>
-								<div>
-									<span>Nihai tahmin</span>
-									<strong class:up={currentModelDecision.predictedDirection === 'up'} class:down={currentModelDecision.predictedDirection === 'down'} class:neutral={currentModelDecision.predictedDirection === 'neutral'}>{directionLabel(currentModelDecision.predictedDirection)}</strong>
-								</div>
-								<div>
-									<span>Consensus</span>
-									<strong>{consensusStatusText(currentModelDecision)}</strong>
-								</div>
-							</div>
-							<div class="model-chip-grid">
-								{#each modelDirectionEntries(currentModelDecision) as model}
-									<div class="model-chip">
-										<span>{model.name}</span>
-										<strong class:up={model.direction === 'up'} class:down={model.direction === 'down'} class:neutral={model.direction === 'neutral' || model.direction === ''}>{directionLabel(model.direction)}</strong>
-										<small>{modelOutcomeText(currentModelDecision, model.direction)}</small>
-									</div>
-								{/each}
-							</div>
-							<p>{consensusReasonText(currentModelDecision)}</p>
-						</div>
-
-						{#each modelDecisionHistory as item}
-							<div class="model-decision-card" class:pending-row={item.isPending}>
-								<div class="model-decision-head">
-									<div>
-										<span>Hedef mum</span>
-										<strong>{new Date(item.targetCandleStart).toLocaleTimeString('tr-TR')}</strong>
-									</div>
-									<div>
-										<span>Nihai tahmin</span>
-										<strong class:up={item.predictedDirection === 'up'} class:down={item.predictedDirection === 'down'} class:neutral={item.predictedDirection === 'neutral'}>{directionLabel(item.predictedDirection)}</strong>
-									</div>
-									<div>
-										<span>Consensus</span>
-										<strong>{consensusStatusText(item)}</strong>
-									</div>
-								</div>
-								<div class="model-chip-grid">
-									{#each modelDirectionEntries(item) as model}
-										<div class="model-chip">
-											<span>{model.name}</span>
-											<strong class:up={model.direction === 'up'} class:down={model.direction === 'down'} class:neutral={model.direction === 'neutral' || model.direction === ''}>{directionLabel(model.direction)}</strong>
-											<small class:good={modelOutcomeText(item, model.direction) === 'Dogru'} class:bad={modelOutcomeText(item, model.direction) === 'Yanlis'} class:neutral={modelOutcomeText(item, model.direction) === 'Bekleniyor'}>{modelOutcomeText(item, model.direction)}</small>
-										</div>
-									{/each}
-								</div>
-								<p>{consensusReasonText(item)}</p>
-							</div>
-						{/each}
-					</div>
-				{/if}
+				<div class={`stats-trade-pill ${predictionHeadlineClass()}`}>
+					<span>Bu sembol icin guncel tahmin</span>
+					<strong>{predictionHeadlineLabel()}</strong>
+				</div>
+				<p>
+					Bu sembolun hangi saatlerde daha dogru sonuc verdigini, hacim yogunlugunu ve filtre nedenlerini ayri istatistik sayfasinda gorebilirsiniz.
+				</p>
+				<a class="stats-cta" href={`/statistics/${detail.asset.market}/${detail.asset.symbol}`}>
+					{detail.asset.symbol} istatistik sayfasini ac
+				</a>
 			</div>
 		</article>
 
@@ -439,6 +439,12 @@
 				<div><span>En iyi satis</span><strong>{formatPrice(detail.depth.bestAsk)}</strong></div>
 				<div><span>Spread bps</span><strong>{detail.depth.spreadBps}</strong></div>
 				<div><span>Mikro fiyat</span><strong>{formatPrice(detail.depth.microPrice)}</strong></div>
+			</div>
+
+			<div class="analysis-callout">
+				<span>Model karar ozeti</span>
+				<strong>{modelDecisionSummary()}</strong>
+				<p>Her modelin yonu yukarida AL veya SAT olarak gosterilir; bu blok toplu model analizini tek satirda verir.</p>
 			</div>
 
 			<div class="feature-list">
@@ -464,12 +470,23 @@
 
 <style>
 	.detail-shell { max-width: 1320px; margin: 0 auto; padding: 28px 20px 60px; }
-	.back, .tag, .eyebrow, .summary, .disclaimer, .column-label, .panel-head p, .feature-card p, .history-row span:first-child { color: #748397; }
+	.page-links { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+	.back, .tag, .eyebrow, .summary, .disclaimer, .panel-head p, .feature-card p { color: #748397; }
+	.stats-link, .stats-cta {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 10px 14px;
+		border-radius: 12px;
+		background: rgba(46, 124, 246, 0.08);
+		color: #1c4da1;
+		font-weight: 700;
+	}
 	h1, h2, p, strong, span { margin: 0; }
 	h1 { font-size: clamp(2.6rem, 5vw, 4.4rem); line-height: 0.95; margin: 8px 0 12px; }
 	h2 { font-size: clamp(1.3rem, 2vw, 1.9rem); color: #162131; }
-	.headline, .top-grid, .bottom-grid, .panel-head, .headline-stats, .range-row, .depth-meta, .feature-head, .history-row { display: flex; gap: 18px; }
-	.headline, .panel-head, .feature-head, .history-row { justify-content: space-between; }
+	.headline, .top-grid, .bottom-grid, .panel-head, .headline-stats, .range-row, .depth-meta, .feature-head { display: flex; gap: 18px; }
+	.headline, .panel-head, .feature-head { justify-content: space-between; }
 	.headline, .panel {
 		border: 1px solid rgba(173, 186, 204, 0.26);
 		border-radius: 28px;
@@ -487,107 +504,115 @@
 	.bottom-grid > .panel:first-child { flex: 1 1 700px; }
 	.side-panel { flex: 1 1 320px; }
 	.panel { padding: 22px; }
-	.up, .good { color: #0fa67a; stroke: #0fa67a; fill: rgba(15, 166, 122, 0.9); }
-	.down, .bad, .risk { color: #e55f61; stroke: #e55f61; fill: rgba(229, 95, 97, 0.9); }
+	.up { color: #0fa67a; stroke: #0fa67a; fill: rgba(15, 166, 122, 0.9); }
+	.down, .risk { color: #e55f61; stroke: #e55f61; fill: rgba(229, 95, 97, 0.9); }
 	.neutral { color: #76879a; stroke: #76879a; fill: rgba(118, 135, 154, 0.85); }
 	.stat-grid, .accuracy-grid, .feature-list { display: grid; gap: 14px; }
 	.stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 	.accuracy-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 16px; }
-	.stat-grid div, .accuracy-grid div, .feature-card, .watchlist-note { padding: 16px; border-radius: 18px; background: #f7f9fc; border: 1px solid #e7edf5; }
-	.feature-list, .history-list { margin-top: 16px; }
-	.feature-card, .history-row { background: #f7f9fc; border: 1px solid #e7edf5; border-radius: 16px; padding: 14px; }
-	.history-panel { margin-top: 16px; }
-	.panel-tabs {
-		display: inline-flex;
-		gap: 6px;
-		padding: 6px;
-		border-radius: 14px;
-		background: #eef3f8;
-		border: 1px solid #dfe7f1;
-	}
-	.panel-tabs button {
-		border: 0;
-		border-radius: 10px;
-		background: transparent;
-		color: #637389;
-		cursor: pointer;
-		font: inherit;
-		font-weight: 700;
-		padding: 9px 12px;
-	}
-	.panel-tabs button.active {
-		background: #ffffff;
-		color: #162131;
-		box-shadow: 0 6px 18px rgba(109, 134, 163, 0.12);
-	}
-	.history-list { display: grid; gap: 10px; }
-	.history-empty {
-		padding: 14px;
-		border-radius: 16px;
-		background: #f7f9fc;
-		border: 1px solid #e7edf5;
-		color: #748397;
-		line-height: 1.6;
-	}
-	.scroll-list {
-		max-height: 320px;
-		overflow-y: auto;
-		padding-right: 6px;
-	}
-	.scroll-list::-webkit-scrollbar {
-		width: 10px;
-	}
-	.scroll-list::-webkit-scrollbar-thumb {
-		background: #d4deea;
-		border-radius: 999px;
-	}
-	.history-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-	.model-decision-list {
+	.stat-grid div, .accuracy-grid div, .feature-card, .watchlist-note, .model-signal-card, .analysis-callout { padding: 16px; border-radius: 18px; background: #f7f9fc; border: 1px solid #e7edf5; }
+	.feature-list { margin-top: 16px; }
+	.feature-card { background: #f7f9fc; border: 1px solid #e7edf5; border-radius: 16px; padding: 14px; }
+	.model-signal-grid {
 		display: grid;
 		gap: 12px;
 		margin-top: 16px;
 	}
-	.model-decision-card {
-		display: grid;
-		gap: 12px;
-		padding: 16px;
-		border-radius: 18px;
-		background: #f7f9fc;
-		border: 1px solid #e7edf5;
-	}
-	.model-decision-card.current {
-		background: linear-gradient(180deg, #fbfdff 0%, #f5f9ff 100%);
-		border-color: #d8e5f3;
-	}
-	.model-decision-head, .model-chip-grid {
-		display: grid;
+	.model-meta-row {
+		display: flex;
+		flex-wrap: wrap;
 		gap: 10px;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
+		margin-top: 10px;
+		color: #5e6c80;
+		font-size: 0.92rem;
 	}
-	.model-decision-head span, .model-chip span {
-		display: block;
-		margin-bottom: 6px;
-		color: #748397;
-		font-size: 0.82rem;
-	}
-	.model-chip {
-		padding: 12px;
-		border-radius: 14px;
-		background: #ffffff;
-		border: 1px solid #e4ebf4;
-	}
-	.model-chip small {
-		display: block;
-		margin-top: 8px;
+	.model-badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 6px 10px;
+		border-radius: 999px;
+		font-size: 0.8rem;
 		font-weight: 700;
 	}
-	.model-decision-card p {
+	.model-badge.up {
+		background: rgba(15, 166, 122, 0.12);
+		color: #0fa67a;
+	}
+	.model-badge.down {
+		background: rgba(229, 95, 97, 0.12);
+		color: #e55f61;
+	}
+	.model-badge.neutral {
+		background: rgba(118, 135, 154, 0.12);
+		color: #76879a;
+	}
+	.analysis-callout {
+		display: grid;
+		gap: 8px;
+		margin-top: 16px;
+		background: linear-gradient(180deg, #fbfdff 0%, #f5f9ff 100%);
+	}
+	.analysis-callout span {
+		color: #748397;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		font-size: 0.72rem;
+	}
+	.analysis-callout p {
 		color: #5e6c80;
 		line-height: 1.5;
 	}
-	.pending-row {
-		border-style: dashed;
-		background: #f5f9ff;
+	.stats-callout {
+		display: grid;
+		gap: 12px;
+		margin-top: 16px;
+		padding: 18px;
+		border-radius: 20px;
+		background: linear-gradient(180deg, #fbfdff 0%, #f5f9ff 100%);
+		border: 1px solid #dce6f0;
+	}
+	.stats-callout span {
+		display: block;
+		margin-bottom: 8px;
+		color: #748397;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		font-size: 0.72rem;
+	}
+	.stats-callout p {
+		color: #5e6c80;
+		line-height: 1.6;
+	}
+	.stats-trade-pill {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		padding: 14px 16px;
+		border-radius: 16px;
+		background: #ffffff;
+		border: 1px solid #dce6f0;
+	}
+	.stats-trade-pill span {
+		display: block;
+		margin-bottom: 0;
+		color: #748397;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		font-size: 0.72rem;
+	}
+	.stats-trade-pill strong {
+		font-size: 1rem;
+	}
+	.stats-trade-pill.up {
+		box-shadow: 0 0 0 1px rgba(15, 166, 122, 0.08) inset;
+	}
+	.stats-trade-pill.down {
+		box-shadow: 0 0 0 1px rgba(229, 95, 97, 0.08) inset;
+	}
+	.stats-trade-pill.neutral {
+		box-shadow: 0 0 0 1px rgba(118, 135, 154, 0.08) inset;
 	}
 	.consensus-badge {
 		display: inline-flex;
@@ -649,6 +674,78 @@
 	.trade-callout.inactive {
 		background: linear-gradient(180deg, #fbfcfe 0%, #f7f9fc 100%);
 	}
+	.prediction-banner {
+		display: grid;
+		gap: 8px;
+		margin-top: 16px;
+		padding: 18px 20px;
+		border-radius: 22px;
+		border: 1px solid #dce6f0;
+		background: linear-gradient(180deg, #fbfdff 0%, #f5f9ff 100%);
+	}
+	.prediction-banner div {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+	}
+	.prediction-banner span {
+		color: #748397;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		font-size: 0.72rem;
+	}
+	.prediction-banner strong {
+		font-size: 1.4rem;
+		color: #162131;
+	}
+	.prediction-banner p {
+		color: #5e6c80;
+		line-height: 1.5;
+	}
+	.prediction-banner.up {
+		box-shadow: 0 0 0 1px rgba(15, 166, 122, 0.08) inset;
+	}
+	.prediction-banner.down {
+		box-shadow: 0 0 0 1px rgba(229, 95, 97, 0.08) inset;
+	}
+	.prediction-banner.neutral {
+		box-shadow: 0 0 0 1px rgba(118, 135, 154, 0.08) inset;
+	}
+	.prediction-details {
+		margin-top: 14px;
+		padding: 14px 16px;
+		border-radius: 18px;
+		background: #f7f9fc;
+		border: 1px solid #e7edf5;
+	}
+	.prediction-details summary {
+		cursor: pointer;
+		font-weight: 700;
+		color: #1c4da1;
+	}
+	.prediction-detail-grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 12px;
+		margin-top: 14px;
+	}
+	.prediction-detail-grid div {
+		padding: 12px 14px;
+		border-radius: 14px;
+		background: #ffffff;
+		border: 1px solid #e2eaf3;
+	}
+	.prediction-detail-grid span {
+		display: block;
+		margin-bottom: 8px;
+		color: #748397;
+	}
+	.prediction-explanation {
+		margin-top: 14px;
+		color: #5e6c80;
+		line-height: 1.6;
+	}
 	.consensus-badge.up {
 		box-shadow: 0 0 0 1px rgba(15, 166, 122, 0.08) inset;
 	}
@@ -661,7 +758,8 @@
 	.narrative, .summary, .disclaimer, .watchlist-note p, .view-note { line-height: 1.6; color: #5e6c80; }
 	.error-banner { margin-top: 18px; padding: 12px 14px; border-radius: 14px; background: rgba(229, 95, 97, 0.12); color: #a33a3b; }
 	@media (max-width: 760px) {
-		.stat-grid, .accuracy-grid, .history-row, .model-decision-head, .model-chip-grid { grid-template-columns: 1fr; }
+		.stat-grid, .accuracy-grid { grid-template-columns: 1fr; }
+		.prediction-detail-grid { grid-template-columns: 1fr; }
 		.panel-head, .feature-head { flex-direction: column; align-items: flex-start; }
 	}
 </style>

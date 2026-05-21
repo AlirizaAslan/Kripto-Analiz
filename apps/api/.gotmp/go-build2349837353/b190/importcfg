@@ -1,0 +1,20 @@
+# import config
+packagefile bufio=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\b2\b237c09add20f8868e89f013f8829c91491af40aef494f5bf351b225231f386f-d
+packagefile crypto/rand=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\5d\5d01f43d0b40ca7293700cf74ff3498176f948453a45920ebae079e16ed93a30-d
+packagefile crypto/sha1=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\23\23f3a975b64bdb48d199c4cfbcb2d7df3c1db2ad0e98e8c91be357559f03e620-d
+packagefile crypto/tls=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\3c\3c84fdbf5a838a3c7f1fb9c73b2f8d406f71bbe7254d5b33a594046da8a179d0-d
+packagefile encoding/base64=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\83\832a5ffb8d3a7d0007aca21ab46f2f115e735e79f796bc43c2a5a7935d3dba95-d
+packagefile encoding/binary=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\36\36cb605b9268dd4fc710b362c51e51db82170ca97ad5602d6ac0603fa6476b7c-d
+packagefile encoding/json=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\89\89a2058f30ef480e598dd247c038c5e515c15480b4f6310c0cf56bd053e54f0d-d
+packagefile fmt=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\2e\2e33defcf2ae74466b00b9e33e84323bd801abfddda5af99188f28f1c4da6d55-d
+packagefile io=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\f5\f58f19e14b19301c89be75cee286eea0cd30bb9250f4d48929bd05b120299e89-d
+packagefile math=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\a6\a6ec57bf1cbe20006fa0347a1ccd550c0aeab5f005a2208aa5952bbdfe507612-d
+packagefile math/rand=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\1b\1b65c2cd744d46b484e5e5da244428d1aca789d87caa5d650d295d00490e76fd-d
+packagefile net=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\e3\e344b0a6322d55a796ee4910aaeb8bc384820fe8633099b5c198a745a41115dd-d
+packagefile net/http=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\41\41d06b9e872a2bf9a938934aaed018d668bdcdd22257efd69bb95431e27db74e-d
+packagefile net/url=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\d5\d52024c521e1034f73df9b1b1c71858427c9f980a2af5e6bb7ce39a51f722563-d
+packagefile pulsealpha/api/internal/domain=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build2349837353\b187\_pkg_.a
+packagefile strconv=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\d4\d495af54458056195c8d2fa4a6afb29bdd1abea89cb4224d1326842219ca69b1-d
+packagefile strings=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\95\95f7574a8b66215abc008e6d66b694279b8bb57f8220cf1c47b0ee0bdfa70caa-d
+packagefile sync=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\0d\0dc44b2017fa0613be288ee5495af66c8f426fe61ae9fdf543588c9e3bae8931-d
+packagefile time=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\bc\bc2bd1823078c7902afbfacbcd5152262a63cc13252d6e63dcf6cbf380857cac-d

@@ -26,10 +26,12 @@ func NewRouter(cfg config.Config) http.Handler {
 
 	mux.HandleFunc("GET /health", handlers.Health(cfg))
 	mux.HandleFunc("GET /api/markets/overview", handlers.MarketOverview(marketService))
+	mux.HandleFunc("GET /api/statistics", handlers.AllStatistics(marketService))
 	mux.HandleFunc("GET /api/markets/{market}/symbols/{symbol}/snapshot", handlers.SymbolSnapshot(marketService))
 	mux.HandleFunc("GET /api/markets/{market}/symbols/{symbol}/depth", handlers.Depth(marketService))
 	mux.HandleFunc("GET /api/markets/{market}/symbols/{symbol}/predictions/latest", handlers.LatestPrediction(marketService))
 	mux.HandleFunc("GET /api/markets/{market}/symbols/{symbol}/predictions/history", handlers.PredictionHistory(marketService))
+	mux.HandleFunc("GET /api/markets/{market}/symbols/{symbol}/statistics", handlers.SymbolStatistics(marketService))
 	mux.HandleFunc("POST /api/auth/login", handlers.Login(cfg))
 	mux.HandleFunc("GET /ws", handlers.Stream(hub))
 

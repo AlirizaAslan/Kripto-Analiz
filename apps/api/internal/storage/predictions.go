@@ -43,6 +43,8 @@ type predictionRow struct {
 	MicroPriceBias     float64
 	VolatilityScore    float64
 	PredictionHourUTC  int
+	PredictionVolume   float64
+	ResolvedVolume     float64
 	ModelDirections    map[string]string
 }
 
@@ -57,6 +59,11 @@ type evaluationRow struct {
 type ComponentAccuracy struct {
 	HistoricalHitRate float64
 	RecentWinRate     float64
+}
+
+type symbolIdentity struct {
+	Symbol string
+	Market domain.Market
 }
 
 func OpenPredictionStore(path string) (*PredictionStore, error) {
@@ -97,6 +104,8 @@ func (s *PredictionStore) init() error {
 			micro_price_bias REAL NOT NULL DEFAULT 0,
 			volatility_score REAL NOT NULL DEFAULT 0,
 			prediction_hour_utc INTEGER NOT NULL DEFAULT 0,
+			prediction_volume REAL NOT NULL DEFAULT 0,
+			resolved_volume REAL NOT NULL DEFAULT 0,
 			realized_direction TEXT,
 			was_correct INTEGER,
 			resolved_at TEXT,
@@ -126,6 +135,35 @@ func (s *PredictionStore) init() error {
 			return err
 		}
 	}
+	recordColumns := map[string]string{
+		"trade_allowed":       "INTEGER NOT NULL DEFAULT 0",
+		"trade_action":        "TEXT NOT NULL DEFAULT 'no_trade'",
+		"trade_filter_reason": "TEXT NOT NULL DEFAULT ''",
+		"signal_quality":      "TEXT NOT NULL DEFAULT ''",
+		"consensus_strength":  "TEXT NOT NULL DEFAULT ''",
+		"regime_label":        "TEXT NOT NULL DEFAULT ''",
+		"spread_bps":          "REAL NOT NULL DEFAULT 0",
+		"depth_imbalance":     "REAL NOT NULL DEFAULT 0",
+		"micro_price_bias":    "REAL NOT NULL DEFAULT 0",
+		"volatility_score":    "REAL NOT NULL DEFAULT 0",
+		"prediction_hour_utc": "INTEGER NOT NULL DEFAULT 0",
+		"prediction_volume":   "REAL NOT NULL DEFAULT 0",
+		"resolved_volume":     "REAL NOT NULL DEFAULT 0",
+	}
+	for name, definition := range recordColumns {
+		if err := s.ensurePredictionRecordColumn(name, definition); err != nil {
+			return err
+		}
+	}
+	evaluationColumns := map[string]string{
+		"trade_allowed":    "INTEGER NOT NULL DEFAULT 0",
+		"consensus_active": "INTEGER NOT NULL DEFAULT 0",
+	}
+	for name, definition := range evaluationColumns {
+		if err := s.ensurePredictionEvaluationColumn(name, definition); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -136,7 +174,7 @@ func (s *PredictionStore) Close() error {
 	return s.db.Close()
 }
 
-func (s *PredictionStore) UpsertPrediction(asset domain.Asset, depth domain.DepthSnapshot, prediction domain.Prediction) error {
+func (s *PredictionStore) UpsertPrediction(asset domain.Asset, depth domain.DepthSnapshot, prediction domain.Prediction, candles []domain.Candle) error {
 	modelDirections := make(map[string]string, len(prediction.ModelComponents))
 	for _, component := range prediction.ModelComponents {
 		modelDirections[component.Name] = component.PredictedDirection
@@ -146,13 +184,15 @@ func (s *PredictionStore) UpsertPrediction(asset domain.Asset, depth domain.Dept
 		return err
 	}
 
+	predictionVolume := latestClosedCandleVolume(candles)
+
 	_, err = s.db.Exec(
 		`INSERT INTO prediction_records (
 			symbol, market, target_candle_start, predicted_direction, confidence_score,
 			consensus_active, consensus_direction, trade_allowed, trade_action, trade_filter_reason,
 			signal_quality, consensus_strength, regime_label, spread_bps, depth_imbalance,
-			micro_price_bias, volatility_score, prediction_hour_utc, model_directions, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			micro_price_bias, volatility_score, prediction_hour_utc, prediction_volume, model_directions, created_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(symbol, target_candle_start) DO UPDATE SET
 			market = excluded.market,
 			predicted_direction = excluded.predicted_direction,
@@ -170,6 +210,7 @@ func (s *PredictionStore) UpsertPrediction(asset domain.Asset, depth domain.Dept
 			micro_price_bias = excluded.micro_price_bias,
 			volatility_score = excluded.volatility_score,
 			prediction_hour_utc = excluded.prediction_hour_utc,
+			prediction_volume = excluded.prediction_volume,
 			model_directions = excluded.model_directions`,
 		asset.Symbol,
 		string(asset.Market),
@@ -189,6 +230,7 @@ func (s *PredictionStore) UpsertPrediction(asset domain.Asset, depth domain.Dept
 		asset.MicroPriceBias,
 		asset.VolatilityScore,
 		prediction.PredictionTimestamp.UTC().Hour(),
+		predictionVolume,
 		string(payload),
 		time.Now().UTC().Format(time.RFC3339Nano),
 	)
@@ -234,7 +276,7 @@ func (s *PredictionStore) ResolveWithCandles(symbol string, candles []domain.Can
 	}
 	for _, row := range rows {
 		if candle, ok := closed[row.TargetCandleStart.Unix()]; ok {
-			if err := s.resolvePrediction(row.Symbol, row.TargetCandleStart, minuteCandleDirection(candle)); err != nil {
+			if err := s.resolvePrediction(row.Symbol, row.TargetCandleStart, minuteCandleDirection(candle), candle.Volume); err != nil {
 				return err
 			}
 		}
@@ -273,9 +315,89 @@ func (s *PredictionStore) Summary(symbol string, recentWindow, historyLimit int)
 	return history, accuracy, componentRates, nil
 }
 
+func (s *PredictionStore) History(symbol string, historyLimit int) ([]domain.PredictionHistoryItem, error) {
+	rows, err := s.resolvedRows(symbol)
+	if err != nil {
+		return nil, err
+	}
+	pending, err := s.pendingRows(symbol)
+	if err != nil {
+		return nil, err
+	}
+	return buildHistory(rows, pending, historyLimit), nil
+}
+
+func (s *PredictionStore) SymbolStatistics(symbol string, recentWindow, historyLimit int) (domain.SymbolStatistics, error) {
+	rows, err := s.resolvedRows(symbol)
+	if err != nil {
+		return domain.SymbolStatistics{}, err
+	}
+	pending, err := s.pendingRows(symbol)
+	if err != nil {
+		return domain.SymbolStatistics{}, err
+	}
+	evals, err := s.resolvedEvaluations(symbol)
+	if err != nil {
+		return domain.SymbolStatistics{}, err
+	}
+	market := marketFromRows(rows, pending)
+	history := buildHistory(rows, pending, historyLimit)
+	hourly := buildHourlyStatistics(rows, pending)
+	lastTarget := latestTargetTime(history)
+	return domain.SymbolStatistics{
+		Symbol:                symbol,
+		Market:                market,
+		AccuracySummary:       buildAccuracy(rows, evals, recentWindow),
+		History:               history,
+		HourlyAccuracy:        hourly,
+		HourlyInsights:        buildHourlyInsights(hourly),
+		TradeFilterBreakdown:  buildTradeFilterBreakdown(rows, pending),
+		PendingCount:          len(pending),
+		TotalPredictions:      len(rows) + len(pending),
+		LastTargetCandleStart: lastTarget,
+	}, nil
+}
+
+func (s *PredictionStore) AllSymbolStatistics(recentWindow, historyLimit int) ([]domain.SymbolStatistics, error) {
+	identities, err := s.symbols()
+	if err != nil {
+		return nil, err
+	}
+	items := make([]domain.SymbolStatistics, 0, len(identities))
+	for _, identity := range identities {
+		item, err := s.SymbolStatistics(identity.Symbol, recentWindow, historyLimit)
+		if err != nil {
+			continue
+		}
+		if item.Market == "" {
+			item.Market = identity.Market
+		}
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Market == items[j].Market {
+			return items[i].Symbol < items[j].Symbol
+		}
+		return items[i].Market < items[j].Market
+	})
+	return items, nil
+}
+
+func (s *PredictionStore) HourlyStatistics(symbol string) ([]domain.HourlyAccuracy, error) {
+	rows, err := s.resolvedRows(symbol)
+	if err != nil {
+		return nil, err
+	}
+	pending, err := s.pendingRows(symbol)
+	if err != nil {
+		return nil, err
+	}
+	return buildHourlyStatistics(rows, pending), nil
+}
+
 func (s *PredictionStore) pendingRows(symbol string) ([]predictionRow, error) {
 	rows, err := s.db.Query(
-		`SELECT symbol, market, target_candle_start, predicted_direction, confidence_score, consensus_active, consensus_direction, trade_allowed, trade_action, trade_filter_reason, signal_quality, consensus_strength, regime_label, spread_bps, depth_imbalance, micro_price_bias, volatility_score, prediction_hour_utc, model_directions
+		`SELECT symbol, market, target_candle_start, predicted_direction, confidence_score, consensus_active, consensus_direction, trade_allowed, trade_action, trade_filter_reason, signal_quality, consensus_strength, regime_label, spread_bps, depth_imbalance, micro_price_bias, volatility_score, prediction_hour_utc, prediction_volume, resolved_volume, model_directions
 		FROM prediction_records
 		WHERE symbol = ? AND (realized_direction IS NULL OR EXISTS (
 			SELECT 1 FROM prediction_evaluations pe WHERE pe.symbol = prediction_records.symbol AND pe.target_candle_start = prediction_records.target_candle_start AND pe.realized_direction IS NULL
@@ -306,7 +428,7 @@ func (s *PredictionStore) pendingRows(symbol string) ([]predictionRow, error) {
 
 func (s *PredictionStore) resolvedRows(symbol string) ([]predictionRow, error) {
 	rows, err := s.db.Query(
-		`SELECT symbol, market, target_candle_start, predicted_direction, confidence_score, consensus_active, consensus_direction, trade_allowed, trade_action, trade_filter_reason, signal_quality, consensus_strength, regime_label, spread_bps, depth_imbalance, micro_price_bias, volatility_score, prediction_hour_utc, realized_direction, was_correct, model_directions
+		`SELECT symbol, market, target_candle_start, predicted_direction, confidence_score, consensus_active, consensus_direction, trade_allowed, trade_action, trade_filter_reason, signal_quality, consensus_strength, regime_label, spread_bps, depth_imbalance, micro_price_bias, volatility_score, prediction_hour_utc, prediction_volume, resolved_volume, realized_direction, was_correct, model_directions
 		FROM prediction_records
 		WHERE symbol = ? AND realized_direction IS NOT NULL
 		ORDER BY target_candle_start ASC`,
@@ -402,6 +524,8 @@ func scanPredictionRow(scanner interface {
 			&row.MicroPriceBias,
 			&row.VolatilityScore,
 			&row.PredictionHourUTC,
+			&row.PredictionVolume,
+			&row.ResolvedVolume,
 			&realizedDirection,
 			&wasCorrect,
 			&modelDirectionsRaw,
@@ -435,6 +559,8 @@ func scanPredictionRow(scanner interface {
 			&row.MicroPriceBias,
 			&row.VolatilityScore,
 			&row.PredictionHourUTC,
+			&row.PredictionVolume,
+			&row.ResolvedVolume,
 			&modelDirectionsRaw,
 		)
 		if err != nil {
@@ -456,16 +582,17 @@ func scanPredictionRow(scanner interface {
 }
 
 func isPredictionTargetAligned(target time.Time) bool {
-	return target.Equal(target.Truncate(predictionCandleInterval))
+	return !target.IsZero()
 }
 
-func (s *PredictionStore) resolvePrediction(symbol string, target time.Time, realizedDirection string) error {
+func (s *PredictionStore) resolvePrediction(symbol string, target time.Time, realizedDirection string, resolvedVolume float64) error {
 	_, err := s.db.Exec(
 		`UPDATE prediction_records
-		SET realized_direction = ?, was_correct = CASE WHEN predicted_direction = ? THEN 1 ELSE 0 END, resolved_at = ?
+		SET realized_direction = ?, was_correct = CASE WHEN predicted_direction = ? THEN 1 ELSE 0 END, resolved_volume = ?, resolved_at = ?
 		WHERE symbol = ? AND target_candle_start = ? AND (realized_direction IS NULL OR (trade_allowed = 1 AND realized_direction = 'neutral'))`,
 		realizedDirection,
 		realizedDirection,
+		resolvedVolume,
 		time.Now().UTC().Format(time.RFC3339Nano),
 		symbol,
 		target.UTC().Format(time.RFC3339Nano),
@@ -749,6 +876,317 @@ func buildComponentRates(rows []predictionRow, recentWindow int) map[string]Comp
 		}
 	}
 	return out
+}
+
+func buildHourlyStatistics(rows []predictionRow, pendingRows []predictionRow) []domain.HourlyAccuracy {
+	hourlyMap := make(map[int]*domain.HourlyAccuracy)
+	confidenceSums := make(map[int]float64)
+	tradeConfidenceSums := make(map[int]float64)
+	predictionVolumeSums := make(map[int]float64)
+	predictionVolumeCounts := make(map[int]int)
+	resolvedVolumeSums := make(map[int]float64)
+	resolvedVolumeCounts := make(map[int]int)
+	peakVolumes := make(map[int]float64)
+	for i := 0; i < 24; i++ {
+		hourlyMap[i] = &domain.HourlyAccuracy{Hour: i}
+	}
+
+	for _, row := range rows {
+		stats := hourlyMap[row.PredictionHourUTC]
+		stats.Total++
+		confidenceSums[row.PredictionHourUTC] += row.ConfidenceScore
+		if row.WasCorrect {
+			stats.Wins++
+		} else {
+			stats.WrongCount++
+			stats.WrongVolatilitySum += row.VolatilityScore
+		}
+		if row.TradeAllowed {
+			stats.TradeTotal++
+			tradeConfidenceSums[row.PredictionHourUTC] += row.ConfidenceScore
+			if row.WasCorrect {
+				stats.TradeWins++
+			}
+		}
+		if row.PredictionVolume > 0 {
+			predictionVolumeSums[row.PredictionHourUTC] += row.PredictionVolume
+			predictionVolumeCounts[row.PredictionHourUTC]++
+			if row.PredictionVolume > peakVolumes[row.PredictionHourUTC] {
+				peakVolumes[row.PredictionHourUTC] = row.PredictionVolume
+			}
+		}
+		if row.ResolvedVolume > 0 {
+			resolvedVolumeSums[row.PredictionHourUTC] += row.ResolvedVolume
+			resolvedVolumeCounts[row.PredictionHourUTC]++
+			if row.ResolvedVolume > peakVolumes[row.PredictionHourUTC] {
+				peakVolumes[row.PredictionHourUTC] = row.ResolvedVolume
+			}
+		}
+	}
+
+	for _, row := range pendingRows {
+		stats := hourlyMap[row.PredictionHourUTC]
+		stats.Pending++
+		if row.PredictionVolume > 0 {
+			predictionVolumeSums[row.PredictionHourUTC] += row.PredictionVolume
+			predictionVolumeCounts[row.PredictionHourUTC]++
+			if row.PredictionVolume > peakVolumes[row.PredictionHourUTC] {
+				peakVolumes[row.PredictionHourUTC] = row.PredictionVolume
+			}
+		}
+	}
+
+	var result []domain.HourlyAccuracy
+	for i := 0; i < 24; i++ {
+		stats := hourlyMap[i]
+		if stats.Total > 0 {
+			stats.WinRate = round(float64(stats.Wins)/float64(stats.Total), 4)
+			stats.AverageConfidence = round(confidenceSums[i]/float64(stats.Total), 4)
+		}
+		if stats.TradeTotal > 0 {
+			stats.TradeWinRate = round(float64(stats.TradeWins)/float64(stats.TradeTotal), 4)
+			stats.TradeAverageConfidence = round(tradeConfidenceSums[i]/float64(stats.TradeTotal), 4)
+		}
+		if stats.WrongCount > 0 {
+			stats.AvgWrongVolatility = round(stats.WrongVolatilitySum/float64(stats.WrongCount), 4)
+		}
+		if predictionVolumeCounts[i] > 0 {
+			stats.AveragePredictionVolume = round(predictionVolumeSums[i]/float64(predictionVolumeCounts[i]), 2)
+		}
+		if resolvedVolumeCounts[i] > 0 {
+			stats.AverageResolvedVolume = round(resolvedVolumeSums[i]/float64(resolvedVolumeCounts[i]), 2)
+		}
+		stats.PeakVolume = round(peakVolumes[i], 2)
+		result = append(result, *stats)
+	}
+	return result
+}
+
+func buildHourlyInsights(hourly []domain.HourlyAccuracy) domain.HourlyInsightSet {
+	bestHours := hourlyInsightsFrom(hourly, func(item domain.HourlyAccuracy) bool { return item.Total > 0 }, func(item domain.HourlyAccuracy) float64 {
+		return item.WinRate
+	})
+	weakHours := hourlyInsightsFrom(hourly, func(item domain.HourlyAccuracy) bool { return item.Total > 0 }, func(item domain.HourlyAccuracy) float64 {
+		return -item.WinRate
+	})
+	mostActiveHours := hourlyInsightsFrom(hourly, func(item domain.HourlyAccuracy) bool { return item.Total+item.Pending > 0 }, func(item domain.HourlyAccuracy) float64 {
+		return float64(item.Total + item.Pending)
+	})
+	bestTradeHours := hourlyInsightsFrom(hourly, func(item domain.HourlyAccuracy) bool { return item.TradeTotal > 0 }, func(item domain.HourlyAccuracy) float64 {
+		return item.TradeWinRate
+	})
+	highestVolumeHours := hourlyInsightsFrom(hourly, func(item domain.HourlyAccuracy) bool {
+		return item.AverageResolvedVolume > 0 || item.AveragePredictionVolume > 0
+	}, func(item domain.HourlyAccuracy) float64 {
+		if item.AverageResolvedVolume > 0 {
+			return item.AverageResolvedVolume
+		}
+		return item.AveragePredictionVolume
+	})
+
+	inactive := make([]int, 0, 24)
+	pendingHeavy := make([]int, 0, 24)
+	for _, item := range hourly {
+		if item.Total == 0 && item.Pending == 0 {
+			inactive = append(inactive, item.Hour)
+		}
+		if item.Pending > item.Total {
+			pendingHeavy = append(pendingHeavy, item.Hour)
+		}
+	}
+
+	return domain.HourlyInsightSet{
+		BestHours:          bestHours,
+		WeakHours:          weakHours,
+		MostActiveHours:    mostActiveHours,
+		BestTradeHours:     bestTradeHours,
+		HighestVolumeHours: highestVolumeHours,
+		InactiveHours:      inactive,
+		PendingHeavyHours:  pendingHeavy,
+	}
+}
+
+func hourlyInsightsFrom(hourly []domain.HourlyAccuracy, include func(domain.HourlyAccuracy) bool, score func(domain.HourlyAccuracy) float64) []domain.HourlyInsight {
+	items := make([]domain.HourlyInsight, 0, len(hourly))
+	for _, item := range hourly {
+		if !include(item) {
+			continue
+		}
+		items = append(items, domain.HourlyInsight{
+			Label:         hourLabel(item.Hour),
+			Hour:          item.Hour,
+			WinRate:       item.WinRate,
+			TradeWinRate:  item.TradeWinRate,
+			SampleSize:    item.Total,
+			TradeSamples:  item.TradeTotal,
+			AverageVolume: maxFloat(item.AverageResolvedVolume, item.AveragePredictionVolume),
+			PeakVolume:    item.PeakVolume,
+		})
+	}
+	sort.Slice(items, func(i, j int) bool {
+		left := score(hourlyStatFromInsight(items[i], hourly))
+		right := score(hourlyStatFromInsight(items[j], hourly))
+		if left == right {
+			if items[i].SampleSize == items[j].SampleSize {
+				return items[i].Hour < items[j].Hour
+			}
+			return items[i].SampleSize > items[j].SampleSize
+		}
+		return left > right
+	})
+	if len(items) > 3 {
+		items = items[:3]
+	}
+	return items
+}
+
+func hourlyStatFromInsight(insight domain.HourlyInsight, hourly []domain.HourlyAccuracy) domain.HourlyAccuracy {
+	for _, item := range hourly {
+		if item.Hour == insight.Hour {
+			return item
+		}
+	}
+	return domain.HourlyAccuracy{Hour: insight.Hour}
+}
+
+func buildTradeFilterBreakdown(rows []predictionRow, pendingRows []predictionRow) []domain.TradeFilterBreakdown {
+	counts := map[string]int{}
+	for _, row := range append(append([]predictionRow{}, rows...), pendingRows...) {
+		reason := row.TradeFilterReason
+		if reason == "" {
+			reason = "Islem filtresi tetiklenmedi"
+		}
+		counts[reason]++
+	}
+	items := make([]domain.TradeFilterBreakdown, 0, len(counts))
+	for reason, count := range counts {
+		items = append(items, domain.TradeFilterBreakdown{
+			Reason: reason,
+			Count:  count,
+		})
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Count == items[j].Count {
+			return items[i].Reason < items[j].Reason
+		}
+		return items[i].Count > items[j].Count
+	})
+	if len(items) > 5 {
+		items = items[:5]
+	}
+	return items
+}
+
+func latestTargetTime(history []domain.PredictionHistoryItem) *time.Time {
+	if len(history) == 0 {
+		return nil
+	}
+	last := history[len(history)-1].TargetCandleStart
+	return &last
+}
+
+func marketFromRows(rows, pendingRows []predictionRow) domain.Market {
+	if len(rows) > 0 {
+		return domain.Market(rows[0].Market)
+	}
+	if len(pendingRows) > 0 {
+		return domain.Market(pendingRows[0].Market)
+	}
+	return ""
+}
+
+func hourLabel(hour int) string {
+	return time.Date(0, 1, 1, hour, 0, 0, 0, time.UTC).Format("15:04")
+}
+
+func latestClosedCandleVolume(candles []domain.Candle) float64 {
+	for index := len(candles) - 1; index >= 0; index-- {
+		if candles[index].IsLive {
+			continue
+		}
+		return candles[index].Volume
+	}
+	return 0
+}
+
+func (s *PredictionStore) ensurePredictionRecordColumn(name, definition string) error {
+	rows, err := s.db.Query(`PRAGMA table_info(prediction_records);`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			cid        int
+			columnName string
+			columnType string
+			notNull    int
+			defaultVal sql.NullString
+			pk         int
+		)
+		if err := rows.Scan(&cid, &columnName, &columnType, &notNull, &defaultVal, &pk); err != nil {
+			return err
+		}
+		if columnName == name {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	_, err = s.db.Exec(`ALTER TABLE prediction_records ADD COLUMN ` + name + ` ` + definition)
+	return err
+}
+
+func (s *PredictionStore) ensurePredictionEvaluationColumn(name, definition string) error {
+	rows, err := s.db.Query(`PRAGMA table_info(prediction_evaluations);`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			cid        int
+			columnName string
+			columnType string
+			notNull    int
+			defaultVal sql.NullString
+			pk         int
+		)
+		if err := rows.Scan(&cid, &columnName, &columnType, &notNull, &defaultVal, &pk); err != nil {
+			return err
+		}
+		if columnName == name {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	_, err = s.db.Exec(`ALTER TABLE prediction_evaluations ADD COLUMN ` + name + ` ` + definition)
+	return err
+}
+
+func (s *PredictionStore) symbols() ([]symbolIdentity, error) {
+	rows, err := s.db.Query(`SELECT symbol, market FROM prediction_records GROUP BY symbol, market ORDER BY market, symbol`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]symbolIdentity, 0, 16)
+	for rows.Next() {
+		var item symbolIdentity
+		var market string
+		if err := rows.Scan(&item.Symbol, &market); err != nil {
+			return nil, err
+		}
+		item.Market = domain.Market(market)
+		items = append(items, item)
+	}
+	return items, rows.Err()
 }
 
 func boolToInt(value bool) int {

@@ -1,0 +1,8 @@
+# import config
+packagefile bytes=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b068\_pkg_.a
+packagefile crypto/internal/fips140=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b083\_pkg_.a
+packagefile crypto/internal/fips140/subtle=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b093\_pkg_.a
+packagefile crypto/internal/fips140deps/byteorder=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b089\_pkg_.a
+packagefile crypto/internal/fips140deps/cpu=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b090\_pkg_.a
+packagefile errors=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b004\_pkg_.a
+packagefile math/bits=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b038\_pkg_.a

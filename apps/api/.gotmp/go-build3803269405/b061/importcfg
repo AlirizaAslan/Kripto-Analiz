@@ -1,0 +1,6 @@
+# import config
+packagefile errors=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b004\_pkg_.a
+packagefile internal/syscall/windows/sysdll=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b051\_pkg_.a
+packagefile runtime=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b010\_pkg_.a
+packagefile syscall=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b053\_pkg_.a
+packagefile unicode/utf16=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b055\_pkg_.a

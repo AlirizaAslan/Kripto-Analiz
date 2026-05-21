@@ -1,0 +1,14 @@
+# import config
+packagefile context=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b077\_pkg_.a
+packagefile errors=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b004\_pkg_.a
+packagefile math=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b037\_pkg_.a
+packagefile pulsealpha/api/internal/config=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b182\_pkg_.a
+packagefile pulsealpha/api/internal/domain=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b187\_pkg_.a
+packagefile pulsealpha/api/internal/inference=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b189\_pkg_.a
+packagefile pulsealpha/api/internal/marketdata=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b190\_pkg_.a
+packagefile pulsealpha/api/internal/storage=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b191\_pkg_.a
+packagefile sort=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b072\_pkg_.a
+packagefile strconv=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b039\_pkg_.a
+packagefile strings=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b069\_pkg_.a
+packagefile sync=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b041\_pkg_.a
+packagefile time=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b058\_pkg_.a

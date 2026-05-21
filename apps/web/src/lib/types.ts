@@ -186,3 +186,66 @@ export type AssetDetail = {
 	watchlistNote: string;
 	disclaimer: string;
 };
+
+export type HourlyAccuracy = {
+	hour: number;
+	total: number;
+	wins: number;
+	winRate: number;
+	tradeTotal: number;
+	tradeWins: number;
+	tradeWinRate: number;
+	wrongCount?: number;
+	wrongVolatilitySum?: number;
+	avgWrongVolatility?: number;
+	pending: number;
+	averageConfidence: number;
+	tradeAverageConfidence: number;
+	averagePredictionVolume: number;
+	averageResolvedVolume: number;
+	peakVolume: number;
+};
+
+export type HourlyInsight = {
+	label: string;
+	hour: number;
+	winRate: number;
+	tradeWinRate: number;
+	sampleSize: number;
+	tradeSamples: number;
+	averageVolume: number;
+	peakVolume: number;
+};
+
+export type HourlyInsightSet = {
+	bestHours: HourlyInsight[];
+	weakHours: HourlyInsight[];
+	mostActiveHours: HourlyInsight[];
+	bestTradeHours: HourlyInsight[];
+	highestVolumeHours: HourlyInsight[];
+	inactiveHours: number[];
+	pendingHeavyHours: number[];
+};
+
+export type TradeFilterBreakdown = {
+	reason: string;
+	count: number;
+};
+
+export type SymbolStatistics = {
+	symbol: string;
+	market: Market;
+	accuracySummary: AccuracySummary;
+	history: PredictionHistoryItem[];
+	hourlyAccuracy: HourlyAccuracy[];
+	hourlyInsights: HourlyInsightSet;
+	tradeFilterBreakdown: TradeFilterBreakdown[];
+	pendingCount: number;
+	totalPredictions: number;
+	lastTargetCandleStart?: string;
+};
+
+export type StatisticsOverview = {
+	generatedAt: string;
+	items: SymbolStatistics[];
+};

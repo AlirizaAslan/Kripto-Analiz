@@ -88,6 +88,35 @@ func PredictionHistory(service *market.Service) http.HandlerFunc {
 	}
 }
 
+func SymbolStatistics(service *market.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		marketName, ok := parseMarket(r.PathValue("market"))
+		if !ok {
+			http.Error(w, "unsupported market", http.StatusBadRequest)
+			return
+		}
+
+		stats, err := service.SymbolStatistics(marketName, r.PathValue("symbol"))
+		if err != nil {
+			http.Error(w, "symbol not found", http.StatusNotFound)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, stats)
+	}
+}
+
+func AllStatistics(service *market.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		stats, err := service.AllSymbolStatistics()
+		if err != nil {
+			http.Error(w, "statistics not available", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, stats)
+	}
+}
+
 func parseMarket(value string) (domain.Market, bool) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case string(domain.MarketUSEquities):

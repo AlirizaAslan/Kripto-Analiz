@@ -55,6 +55,20 @@ type BinanceProvider struct {
 	startOnce   sync.Once
 }
 
+type chartIntervalRequest struct {
+	interval string
+	limit    int
+}
+
+var extendedChartIntervals = []chartIntervalRequest{
+	{interval: "5m", limit: 720},
+	{interval: "15m", limit: 720},
+	{interval: "1h", limit: 720},
+	{interval: "4h", limit: 720},
+	{interval: "1d", limit: 365},
+	{interval: "1w", limit: 260},
+}
+
 type symbolState struct {
 	instrument Instrument
 	mu         sync.RWMutex
@@ -161,16 +175,46 @@ func (p *BinanceProvider) Start() {
 }
 
 func (p *BinanceProvider) Snapshot(symbol string) (Snapshot, error) {
+	return p.snapshotWithOptions(symbol, true)
+}
+
+func (p *BinanceProvider) LiteSnapshot(symbol string) (Snapshot, error) {
+	return p.snapshotWithOptions(symbol, false)
+}
+
+func (p *BinanceProvider) snapshotWithOptions(symbol string, includeCharts bool) (Snapshot, error) {
 	p.Start()
 	state, ok := p.states[strings.ToUpper(strings.TrimSpace(symbol))]
 	if !ok {
 		return Snapshot{}, fmt.Errorf("symbol not configured")
 	}
 
-	price, _ := p.fetchPrice(state.instrument)
-	ticker, _ := p.fetchTicker(state.instrument)
-	bookTicker, _ := p.fetchBookTicker(state.instrument)
-	restDepth, _ := p.fetchDepth(state.instrument, 20)
+	var (
+		price      float64
+		ticker     tickerSnapshot
+		bookTicker bookTickerSnapshot
+		restDepth  domain.DepthSnapshot
+	)
+
+	var fetchWG sync.WaitGroup
+	fetchWG.Add(4)
+	go func() {
+		defer fetchWG.Done()
+		price, _ = p.fetchPrice(state.instrument)
+	}()
+	go func() {
+		defer fetchWG.Done()
+		ticker, _ = p.fetchTicker(state.instrument)
+	}()
+	go func() {
+		defer fetchWG.Done()
+		bookTicker, _ = p.fetchBookTicker(state.instrument)
+	}()
+	go func() {
+		defer fetchWG.Done()
+		restDepth, _ = p.fetchDepth(state.instrument, 20)
+	}()
+	fetchWG.Wait()
 
 	state.mu.RLock()
 	lastPrice := price
@@ -204,20 +248,22 @@ func (p *BinanceProvider) Snapshot(symbol string) (Snapshot, error) {
 		"1m_recent": tailCandles(oneMinute, 60),
 		"1m":        append([]domain.Candle(nil), oneMinute...),
 	}
-	for _, request := range []struct {
-		interval string
-		limit    int
-	}{
-		{interval: "5m", limit: 720},
-		{interval: "15m", limit: 720},
-		{interval: "1h", limit: 720},
-		{interval: "4h", limit: 720},
-		{interval: "1d", limit: 365},
-		{interval: "1w", limit: 260},
-	} {
-		if candles, err := p.fetchCachedKlines(state, request.interval, request.limit, lastPrice); err == nil && len(candles) > 0 {
-			chartCandles[request.interval] = candles
+
+	if includeCharts {
+		var chartWG sync.WaitGroup
+		var chartMu sync.Mutex
+		for _, request := range extendedChartIntervals {
+			chartWG.Add(1)
+			go func(req chartIntervalRequest) {
+				defer chartWG.Done()
+				if candles, err := p.fetchCachedKlines(state, req.interval, req.limit, lastPrice); err == nil && len(candles) > 0 {
+					chartMu.Lock()
+					chartCandles[req.interval] = candles
+					chartMu.Unlock()
+				}
+			}(request)
 		}
+		chartWG.Wait()
 	}
 
 	return Snapshot{
@@ -592,7 +638,7 @@ func (s *symbolState) applyTrade(price float64, quantity float64, timestamp time
 	} else if sec > s.bucket.second {
 		prevClose := s.bucket.close
 		s.appendBucketLocked(*s.bucket)
-	for gap := s.bucket.second + 1; gap < sec; gap++ {
+		for gap := s.bucket.second + 1; gap < sec; gap++ {
 			s.appendBucketLocked(candleBucket{second: gap, open: prevClose, high: prevClose, low: prevClose, close: prevClose})
 		}
 		s.bucket = &candleBucket{second: sec, open: price, high: price, low: price, close: price, volume: quantity}

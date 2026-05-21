@@ -1,0 +1,7 @@
+# import config
+packagefile crypto/internal/fips140=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b083\_pkg_.a
+packagefile crypto/internal/fips140/hmac=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b087\_pkg_.a
+packagefile crypto/internal/fips140/sha256=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b088\_pkg_.a
+packagefile crypto/internal/fips140deps/byteorder=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b089\_pkg_.a
+packagefile crypto/internal/fips140deps/godebug=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b084\_pkg_.a
+packagefile io=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b047\_pkg_.a

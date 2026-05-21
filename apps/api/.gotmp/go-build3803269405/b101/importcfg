@@ -1,0 +1,8 @@
+# import config
+packagefile crypto/internal/fips140/drbg=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b096\_pkg_.a
+packagefile crypto/internal/fips140/sha256=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b088\_pkg_.a
+packagefile crypto/internal/fips140/sha3=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b092\_pkg_.a
+packagefile crypto/internal/fips140/sha512=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b094\_pkg_.a
+packagefile hash=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b075\_pkg_.a
+packagefile internal/godebug=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b059\_pkg_.a
+packagefile io=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b047\_pkg_.a

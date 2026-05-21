@@ -147,6 +147,14 @@ function finalDirectionFromConsensus(
 	return 'neutral';
 }
 
+function isTrackablePrediction(prediction: Prediction) {
+	if (!prediction.consensusActive) return false;
+	if (prediction.consensusDirection !== 'up' && prediction.consensusDirection !== 'down') return false;
+	if (prediction.predictedDirection !== prediction.consensusDirection) return false;
+	if (prediction.modelComponents.slice(0, 3).length < 3) return false;
+	return prediction.modelComponents.slice(0, 3).every((component) => component.predictedDirection === prediction.consensusDirection);
+}
+
 function componentDirection(score: number, probability: number): Prediction['predictedDirection'] {
 	if (score === 0) return probability >= 0.5 ? 'up' : 'down';
 	if (score > 0) return 'up';
@@ -590,6 +598,17 @@ function buildPrediction(asset: Asset, depth: DepthSnapshot, now: number): Predi
 		tradeAction = finalPredictedDirection === 'up' ? 'buy' : finalPredictedDirection === 'down' ? 'sell' : 'no_trade';
 		tradeFilterReason = 'Uc model ayni yone bakti ve kalite filtreleri gecti.';
 	}
+	if (
+		!consensusActive ||
+		consensusDirection !== 'up' && consensusDirection !== 'down' ||
+		finalPredictedDirection !== consensusDirection ||
+		hasNeutralModel ||
+		!allPrimaryModelsAligned
+	) {
+		tradeAllowed = false;
+		tradeAction = 'no_trade';
+		tradeFilterReason = 'Uc model ortak karar vermedigi icin kayda alinmadi.';
+	}
 	return {
 		candleInterval: '1m',
 		predictionTimestamp: new Date(now).toISOString(),
@@ -680,13 +699,16 @@ function buildHistory(asset: Asset, prediction: Prediction, now: number): Predic
 		return [];
 	}
 
-	return Array.from({ length: 8 }, (_, index) => {
+	const items: Array<PredictionHistoryItem | null> = Array.from({ length: 8 }, (_, index) => {
 		const step = 8 - index;
 		const targetTimestamp = currentMinuteStart - step * MINUTE_MS;
 		const predictionTimestamp = targetTimestamp - SECOND_MS;
 		const historicalAsset = buildAsset(seed, predictionTimestamp);
 		const historicalDepth = buildDepth(historicalAsset, predictionTimestamp);
 		const historicalPrediction = buildPrediction(historicalAsset, historicalDepth, predictionTimestamp);
+		if (!isTrackablePrediction(historicalPrediction)) {
+			return null;
+		}
 		const realizedAsset = buildAsset(seed, targetTimestamp);
 		const realized = minuteDirection(projectCandle(realizedAsset, Math.floor(targetTimestamp / MINUTE_MS)));
 		const tradeAllowed =
@@ -711,6 +733,8 @@ function buildHistory(asset: Asset, prediction: Prediction, now: number): Predic
 			isPending: false
 		};
 	});
+
+	return items.filter((item): item is PredictionHistoryItem => item !== null);
 }
 
 function buildAccuracySummary(history: PredictionHistoryItem[], recentWindow = 5): AccuracySummary {
@@ -1109,6 +1133,8 @@ function buildFallbackDetail(market: Market, symbol: string): AssetDetail | null
 	};
 }
 
+import { recordPredictionsFromOverview, resolvePredictions } from './prediction-store';
+
 async function fetchAPI<T>(path: string): Promise<T | null> {
 	const baseURL = env.PULSEALPHA_API_BASE_URL || 'http://127.0.0.1:8080';
 	try {
@@ -1164,11 +1190,21 @@ async function withFallbackCrypto(overview: Omit<MarketOverview, 'mode'>): Promi
 }
 
 export async function getMarketOverview(): Promise<MarketOverview> {
-	const overview = await fetchAPI<Omit<MarketOverview, 'mode'>>('/api/markets/overview');
-	if (!overview) return buildFallbackOverview();
-	if (!overview.summaries?.length || !overview.assets?.length) return buildFallbackOverview();
+	let overview = await fetchAPI<Omit<MarketOverview, 'mode'>>('/api/markets/overview');
+	if (!overview || !overview.summaries?.length || !overview.assets?.length) {
+		overview = await buildFallbackOverview();
+	}
 
 	const normalizedOverview = await withFallbackCrypto(overview);
+	
+	// PERSIST FALLBACK DATA TO LOCAL JSON STORE
+	recordPredictionsFromOverview(normalizedOverview.summaries);
+	for (const summary of normalizedOverview.summaries) {
+		if (summary.miniCandles) {
+			resolvePredictions(summary.asset.symbol, summary.miniCandles);
+		}
+	}
+
 	const hasDegradedCrypto = normalizedOverview.summaries.some(
 		(item) => item.asset.market === 'crypto' && item.asset.signalQuality === 'degraded'
 	);
@@ -1184,11 +1220,19 @@ export async function getMarketOverview(): Promise<MarketOverview> {
 }
 
 export async function getAssetDetail(market: Market, symbol: string): Promise<AssetDetail | null> {
-	const detail = await fetchAPI<Omit<AssetDetail, 'mode'>>(`/api/markets/${market}/symbols/${symbol}/snapshot`);
-	if (!detail && market === 'crypto') return fetchLiveCryptoDetail(symbol);
-	if (!detail) return buildFallbackDetail(market, symbol);
-	if (market === 'crypto' && detail.asset.signalQuality === 'degraded') {
-		return (await fetchLiveCryptoDetail(symbol)) ?? { ...detail, mode: 'api_live' };
+	let detail = await fetchAPI<Omit<AssetDetail, 'mode'>>(`/api/markets/${market}/symbols/${symbol}/snapshot`);
+	if (!detail && market === 'crypto') {
+		detail = await fetchLiveCryptoDetail(symbol);
 	}
-	return { ...detail, mode: 'api_live' };
+	if (!detail) {
+		detail = await buildFallbackDetail(market, symbol);
+	} else if (market === 'crypto' && detail.asset.signalQuality === 'degraded') {
+		detail = (await fetchLiveCryptoDetail(symbol)) ?? detail;
+	}
+	
+	if (detail && detail.candles) {
+		resolvePredictions(symbol, detail.candles);
+	}
+
+	return { ...detail!, mode: 'api_live' };
 }

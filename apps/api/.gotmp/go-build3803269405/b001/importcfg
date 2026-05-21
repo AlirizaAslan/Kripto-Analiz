@@ -1,0 +1,10 @@
+# import config
+packagefile log=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b002\_pkg_.a
+packagefile net/http=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b066\_pkg_.a
+packagefile os=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b048\_pkg_.a
+packagefile os/signal=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b181\_pkg_.a
+packagefile pulsealpha/api/internal/config=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b182\_pkg_.a
+packagefile pulsealpha/api/internal/http=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b183\_pkg_.a
+packagefile syscall=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b053\_pkg_.a
+packagefile time=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b058\_pkg_.a
+packagefile runtime=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build3803269405\b010\_pkg_.a

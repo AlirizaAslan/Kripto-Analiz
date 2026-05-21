@@ -124,6 +124,7 @@
 				Bu panel kripto sembollerini canli mum onizlemesi, emir defteri baskisi,
 				guncel model isabet orani ve acik risk cercevesiyle izler.
 			</p>
+			<a href="/statistics" class="stats-link">İstatistikleri ve Geçmiş Tahminleri Görüntüle →</a>
 		</div>
 
 		<div class="meta-card">
@@ -295,6 +296,8 @@
 	.meta-card, .signal-card, .models-card, .table-panel { padding: 24px; }
 	.brand { flex: 1 1 720px; }
 	.intro { max-width: 65ch; margin-top: 16px; }
+	.stats-link { display: inline-block; margin-top: 16px; color: #2e7cf6; font-weight: 600; text-decoration: none; padding: 10px 16px; background: rgba(46, 124, 246, 0.08); border-radius: 8px; transition: background 0.2s; }
+	.stats-link:hover { background: rgba(46, 124, 246, 0.15); }
 	.meta-card { width: min(100%, 340px); }
 	.meta-label, .badge { color: #2e7cf6; }
 	.meta-card strong { display: block; margin: 4px 0 12px; font-size: 1.25rem; }

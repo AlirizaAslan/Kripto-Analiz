@@ -20,6 +20,8 @@ import (
 const disclaimer = "Sinyaller yalnızca bilgilendirici karar-destek çıktılarıdır. Kişiye özel yatırım tavsiyesi değildir ve gelecekteki performansı garanti etmez."
 
 const predictionCandleInterval = time.Minute
+const overviewWorkerLimit = 8
+const statisticsHistoryLimit = 200
 
 type seedAsset struct {
 	Symbol       string
@@ -100,30 +102,49 @@ func (s *Service) Overview() domain.MarketOverview {
 	summaries := make([]domain.AssetSummary, 0, 10)
 
 	if s.provider != nil && s.provider.Enabled() {
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		sem := make(chan struct{}, overviewWorkerLimit)
+
 		for _, instrument := range s.provider.Instruments() {
-			snapshot, err := s.provider.Snapshot(instrument.Symbol)
-			if err != nil {
-				continue
-			}
-			asset, depth, prediction := s.buildCryptoSnapshot(snapshot, now)
-			candles := trimCandles(snapshot.Candles, 60)
-			if len(candles) == 0 {
-				continue
-			}
-			prediction, _, accuracy := s.applyTrackedAccuracy(asset, depth, prediction, candles)
-			miniCandles := trimCandles(candles, 12)
-			assets = append(assets, asset)
-			summaries = append(summaries, domain.AssetSummary{
-				Asset:            asset,
-				MiniCandles:      miniCandles,
-				Accuracy:         accuracy,
-				LatestPrediction: prediction,
-			})
+			wg.Add(1)
+			go func(inst marketdata.Instrument) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+
+				snapshot, err := s.provider.LiteSnapshot(inst.Symbol)
+				if err != nil {
+					return
+				}
+
+				asset, depth, prediction := s.buildCryptoSnapshot(snapshot, now)
+				candles := trimCandles(snapshot.Candles, 30)
+				if len(candles) == 0 {
+					return
+				}
+				prediction, _, accuracy := s.applyTrackedAccuracy(asset, depth, prediction, candles)
+				miniCandles := trimCandles(candles, 12)
+
+				mu.Lock()
+				assets = append(assets, asset)
+				summaries = append(summaries, domain.AssetSummary{
+					Asset:            asset,
+					MiniCandles:      miniCandles,
+					Accuracy:         accuracy,
+					LatestPrediction: prediction,
+				})
+				mu.Unlock()
+			}(instrument)
 		}
+		wg.Wait()
 	}
 
 	sort.Slice(assets, func(i, j int) bool {
 		return assets[i].ConfidenceScore > assets[j].ConfidenceScore
+	})
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].Asset.ConfidenceScore > summaries[j].Asset.ConfidenceScore
 	})
 
 	status := "Kripto semboller için canlı Binance derinlik verisi bekleniyor."
@@ -284,11 +305,45 @@ func (s *Service) LatestPrediction(market domain.Market, symbol string) (domain.
 }
 
 func (s *Service) PredictionHistory(market domain.Market, symbol string) ([]domain.PredictionHistoryItem, error) {
+	if s.store != nil {
+		history, err := s.store.History(symbol, 200)
+		if err == nil && len(history) > 0 {
+			return history, nil
+		}
+	}
 	snapshot, err := s.Snapshot(market, symbol)
 	if err != nil {
 		return nil, err
 	}
 	return snapshot.PredictionHistory, nil
+}
+
+func (s *Service) SymbolStatistics(market domain.Market, symbol string) (domain.SymbolStatistics, error) {
+	if s.store == nil {
+		return domain.SymbolStatistics{}, errors.New("prediction store not configured")
+	}
+	stats, err := s.store.SymbolStatistics(symbol, 5, 200)
+	if err != nil {
+		return domain.SymbolStatistics{}, err
+	}
+	if stats.Market != "" && stats.Market != market {
+		return domain.SymbolStatistics{}, errors.New("symbol not found")
+	}
+	return stats, nil
+}
+
+func (s *Service) AllSymbolStatistics() (domain.StatisticsOverview, error) {
+	if s.store == nil {
+		return domain.StatisticsOverview{}, errors.New("prediction store not configured")
+	}
+	items, err := s.store.AllSymbolStatistics(5, 200)
+	if err != nil {
+		return domain.StatisticsOverview{}, err
+	}
+	return domain.StatisticsOverview{
+		GeneratedAt: time.Now().UTC(),
+		Items:       items,
+	}, nil
 }
 
 func (s *Service) buildSnapshot(seed seedAsset, now time.Time) (domain.Asset, domain.DepthSnapshot, domain.Prediction) {
@@ -382,7 +437,14 @@ func (s *Service) buildPrediction(asset domain.Asset, depth domain.DepthSnapshot
 		predictedDirection(response.UpProbability, response.DownProbability, response.NeutralProbability),
 		consensus,
 	)
-	tradeDecision := s.tradeDecision(asset, depth, consensus, confidenceScore, regime, finalPredictedDirection, response.ModelComponents)
+	tradePlan := s.tradeDecision(asset, depth, consensus, confidenceScore, regime, finalPredictedDirection, response.ModelComponents)
+	if !isTrackablePrediction(consensus, finalPredictedDirection, response.ModelComponents) {
+		tradePlan = tradeDecision{
+			Allowed: false,
+			Action:  domain.TradeActionNoTrade,
+			Reason:  "Uc model ortak karar vermedigi icin kayda alinmadi.",
+		}
+	}
 
 	prediction := domain.Prediction{
 		CandleInterval:      "1m",
@@ -402,9 +464,9 @@ func (s *Service) buildPrediction(asset domain.Asset, depth domain.DepthSnapshot
 		ConsensusDirection:  consensus.Direction,
 		ConsensusStrength:   consensus.Strength,
 		ConsensusSummary:    consensus.Summary,
-		TradeAllowed:        tradeDecision.Allowed,
-		TradeAction:         tradeDecision.Action,
-		TradeFilterReason:   tradeDecision.Reason,
+		TradeAllowed:        tradePlan.Allowed,
+		TradeAction:         tradePlan.Action,
+		TradeFilterReason:   tradePlan.Reason,
 		RegimeLabel:         regime,
 		Explanation:         explanation,
 		ModelComponents:     response.ModelComponents,
@@ -418,8 +480,8 @@ func (s *Service) buildPrediction(asset domain.Asset, depth domain.DepthSnapshot
 func (s *Service) applyTrackedAccuracy(asset domain.Asset, depth domain.DepthSnapshot, prediction domain.Prediction, candles []domain.Candle) (domain.Prediction, []domain.PredictionHistoryItem, domain.AccuracySummary) {
 	if s.store != nil {
 		if err := s.store.ResolveWithCandles(asset.Symbol, candles); err == nil {
-			_ = s.store.UpsertPrediction(asset, depth, prediction)
-			history, accuracy, componentRates, summaryErr := s.store.Summary(asset.Symbol, 5, 120)
+			_ = s.store.UpsertPrediction(asset, depth, prediction, candles)
+			history, accuracy, componentRates, summaryErr := s.store.Summary(asset.Symbol, 5, statisticsHistoryLimit)
 			if summaryErr == nil {
 				history = reconcileHistoryWithCandles(history, candles)
 				for index := range prediction.ModelComponents {
@@ -507,7 +569,7 @@ type symbolTradeThresholds struct {
 
 func (s *Service) currentAccuracy(symbol string) domain.AccuracySummary {
 	if s.store != nil {
-		_, accuracy, _, err := s.store.Summary(symbol, 5, 120)
+		_, accuracy, _, err := s.store.Summary(symbol, 5, statisticsHistoryLimit)
 		if err == nil {
 			return accuracy
 		}
@@ -1086,6 +1148,33 @@ func (t *predictionTracker) recordPrediction(prediction domain.Prediction) {
 		TradeAllowed:       prediction.TradeAllowed,
 		TradeAction:        prediction.TradeAction,
 	}
+}
+
+func isTrackableStoredPrediction(prediction domain.Prediction) bool {
+	return isTrackablePrediction(
+		consensusSummary{
+			Active:    prediction.ConsensusActive,
+			Direction: prediction.ConsensusDirection,
+		},
+		prediction.PredictedDirection,
+		prediction.ModelComponents,
+	)
+}
+
+func isTrackablePrediction(consensus consensusSummary, predictedDirection string, components []domain.ModelComponent) bool {
+	if !consensus.Active {
+		return false
+	}
+	if consensus.Direction != "up" && consensus.Direction != "down" {
+		return false
+	}
+	if predictedDirection != consensus.Direction {
+		return false
+	}
+	if hasNeutralModelDirection(components) {
+		return false
+	}
+	return allPrimaryModelsAligned(components, consensus.Direction)
 }
 
 func (t *predictionTracker) history() []domain.PredictionHistoryItem {

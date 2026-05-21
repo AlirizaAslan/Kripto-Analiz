@@ -236,3 +236,66 @@ type MarketOverview struct {
 	Assets       []Asset        `json:"assets"`
 	Summaries    []AssetSummary `json:"summaries"`
 }
+
+type HourlyAccuracy struct {
+	Hour                    int     `json:"hour"`
+	Total                   int     `json:"total"`
+	Wins                    int     `json:"wins"`
+	WinRate                 float64 `json:"winRate"`
+	TradeTotal              int     `json:"tradeTotal"`
+	TradeWins               int     `json:"tradeWins"`
+	TradeWinRate            float64 `json:"tradeWinRate"`
+	WrongCount              int     `json:"wrongCount"`
+	WrongVolatilitySum      float64 `json:"wrongVolatilitySum"`
+	AvgWrongVolatility      float64 `json:"avgWrongVolatility"`
+	Pending                 int     `json:"pending"`
+	AverageConfidence       float64 `json:"averageConfidence"`
+	TradeAverageConfidence  float64 `json:"tradeAverageConfidence"`
+	AveragePredictionVolume float64 `json:"averagePredictionVolume"`
+	AverageResolvedVolume   float64 `json:"averageResolvedVolume"`
+	PeakVolume              float64 `json:"peakVolume"`
+}
+
+type HourlyInsight struct {
+	Label         string  `json:"label"`
+	Hour          int     `json:"hour"`
+	WinRate       float64 `json:"winRate"`
+	TradeWinRate  float64 `json:"tradeWinRate"`
+	SampleSize    int     `json:"sampleSize"`
+	TradeSamples  int     `json:"tradeSamples"`
+	AverageVolume float64 `json:"averageVolume"`
+	PeakVolume    float64 `json:"peakVolume"`
+}
+
+type TradeFilterBreakdown struct {
+	Reason string `json:"reason"`
+	Count  int    `json:"count"`
+}
+
+type HourlyInsightSet struct {
+	BestHours          []HourlyInsight `json:"bestHours"`
+	WeakHours          []HourlyInsight `json:"weakHours"`
+	MostActiveHours    []HourlyInsight `json:"mostActiveHours"`
+	BestTradeHours     []HourlyInsight `json:"bestTradeHours"`
+	HighestVolumeHours []HourlyInsight `json:"highestVolumeHours"`
+	InactiveHours      []int           `json:"inactiveHours"`
+	PendingHeavyHours  []int           `json:"pendingHeavyHours"`
+}
+
+type SymbolStatistics struct {
+	Symbol                string                  `json:"symbol"`
+	Market                Market                  `json:"market"`
+	AccuracySummary       AccuracySummary         `json:"accuracySummary"`
+	History               []PredictionHistoryItem `json:"history"`
+	HourlyAccuracy        []HourlyAccuracy        `json:"hourlyAccuracy"`
+	HourlyInsights        HourlyInsightSet        `json:"hourlyInsights"`
+	TradeFilterBreakdown  []TradeFilterBreakdown  `json:"tradeFilterBreakdown"`
+	PendingCount          int                     `json:"pendingCount"`
+	TotalPredictions      int                     `json:"totalPredictions"`
+	LastTargetCandleStart *time.Time              `json:"lastTargetCandleStart,omitempty"`
+}
+
+type StatisticsOverview struct {
+	GeneratedAt time.Time          `json:"generatedAt"`
+	Items       []SymbolStatistics `json:"items"`
+}
