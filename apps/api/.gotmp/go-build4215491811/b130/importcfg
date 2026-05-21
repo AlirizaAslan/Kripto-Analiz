@@ -1,0 +1,6 @@
+# import config
+packagefile crypto/internal/fips140/hkdf=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b131\_pkg_.a
+packagefile crypto/internal/fips140hash=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b121\_pkg_.a
+packagefile crypto/internal/fips140only=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b101\_pkg_.a
+packagefile errors=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b004\_pkg_.a
+packagefile hash=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b075\_pkg_.a

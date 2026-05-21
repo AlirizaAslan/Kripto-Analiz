@@ -1,0 +1,8 @@
+# import config
+packagefile database/sql=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b192\_pkg_.a
+packagefile encoding/json=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b185\_pkg_.a
+packagefile math=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b037\_pkg_.a
+packagefile modernc.org/sqlite=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b194\_pkg_.a
+packagefile pulsealpha/api/internal/domain=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b187\_pkg_.a
+packagefile sort=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b072\_pkg_.a
+packagefile time=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b058\_pkg_.a

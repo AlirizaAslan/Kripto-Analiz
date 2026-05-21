@@ -1,0 +1,5 @@
+# import config
+packagefile internal/bisect=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b060\_pkg_.a
+packagefile internal/godebugs=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b016\_pkg_.a
+packagefile sync=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b041\_pkg_.a
+packagefile sync/atomic=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b043\_pkg_.a

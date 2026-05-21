@@ -1,0 +1,6 @@
+# import config
+packagefile errors=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b004\_pkg_.a
+packagefile internal/byteorder=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b013\_pkg_.a
+packagefile internal/chacha8rand=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b014\_pkg_.a
+packagefile math=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b037\_pkg_.a
+packagefile math/bits=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b038\_pkg_.a

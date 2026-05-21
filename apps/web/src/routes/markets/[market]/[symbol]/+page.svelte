@@ -168,7 +168,7 @@
 					realizedDirection: '' as 'up' | 'down' | 'neutral' | '',
 					confidenceScore: detail.prediction.confidenceScore,
 					wasCorrect: false,
-					tradeAllowed: true,
+					tradeAllowed: detail.prediction.tradeAllowed,
 					tradeAction: detail.prediction.tradeAction,
 					modelDirections: predictionModelDirections(),
 					consensusActive: detail.prediction.consensusActive,

@@ -1,0 +1,8 @@
+# import config
+packagefile internal/abi=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b006\_pkg_.a
+packagefile internal/asan=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b024\_pkg_.a
+packagefile internal/goarch=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b007\_pkg_.a
+packagefile internal/msan=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b025\_pkg_.a
+packagefile internal/race=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b026\_pkg_.a
+packagefile internal/runtime/math=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b027\_pkg_.a
+packagefile internal/runtime/sys=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b028\_pkg_.a

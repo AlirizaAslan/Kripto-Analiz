@@ -1,0 +1,7 @@
+# import config
+packagefile crypto/internal/boring=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b079\_pkg_.a
+packagefile crypto/internal/fips140/hmac=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b087\_pkg_.a
+packagefile crypto/internal/fips140hash=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b121\_pkg_.a
+packagefile crypto/internal/fips140only=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b101\_pkg_.a
+packagefile crypto/subtle=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b102\_pkg_.a
+packagefile hash=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b075\_pkg_.a

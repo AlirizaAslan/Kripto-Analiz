@@ -1,0 +1,9 @@
+# import config
+packagefile crypto/internal/fips140/check=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b086\_pkg_.a
+packagefile crypto/internal/fips140/nistec/fiat=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b112\_pkg_.a
+packagefile crypto/internal/fips140/subtle=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b093\_pkg_.a
+packagefile crypto/internal/fips140deps/byteorder=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b089\_pkg_.a
+packagefile errors=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b004\_pkg_.a
+packagefile math/bits=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b038\_pkg_.a
+packagefile runtime=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b010\_pkg_.a
+packagefile sync=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b041\_pkg_.a

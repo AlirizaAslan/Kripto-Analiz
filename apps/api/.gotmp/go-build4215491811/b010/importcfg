@@ -1,0 +1,21 @@
+# import config
+packagefile internal/abi=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b006\_pkg_.a
+packagefile internal/bytealg=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b011\_pkg_.a
+packagefile internal/byteorder=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b013\_pkg_.a
+packagefile internal/chacha8rand=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b014\_pkg_.a
+packagefile internal/coverage/rtcov=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b015\_pkg_.a
+packagefile internal/cpu=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b012\_pkg_.a
+packagefile internal/goarch=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b007\_pkg_.a
+packagefile internal/godebugs=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b016\_pkg_.a
+packagefile internal/goexperiment=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b017\_pkg_.a
+packagefile internal/goos=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b018\_pkg_.a
+packagefile internal/profilerecord=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b019\_pkg_.a
+packagefile internal/runtime/atomic=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b020\_pkg_.a
+packagefile internal/runtime/exithook=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b021\_pkg_.a
+packagefile internal/runtime/gc=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b022\_pkg_.a
+packagefile internal/runtime/maps=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b023\_pkg_.a
+packagefile internal/runtime/math=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b027\_pkg_.a
+packagefile internal/runtime/strconv=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b029\_pkg_.a
+packagefile internal/runtime/sys=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b028\_pkg_.a
+packagefile internal/stringslite=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b030\_pkg_.a
+packagefile internal/trace/tracev2=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b031\_pkg_.a

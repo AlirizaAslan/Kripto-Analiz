@@ -1,0 +1,11 @@
+# import config
+packagefile log=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b002\_pkg_.a
+packagefile net/http=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b066\_pkg_.a
+packagefile pulsealpha/api/internal/config=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b182\_pkg_.a
+packagefile pulsealpha/api/internal/http/handlers=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b184\_pkg_.a
+packagefile pulsealpha/api/internal/http/middleware=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b221\_pkg_.a
+packagefile pulsealpha/api/internal/inference=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b189\_pkg_.a
+packagefile pulsealpha/api/internal/market=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b188\_pkg_.a
+packagefile pulsealpha/api/internal/marketdata=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b190\_pkg_.a
+packagefile pulsealpha/api/internal/realtime=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b220\_pkg_.a
+packagefile pulsealpha/api/internal/storage=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b191\_pkg_.a

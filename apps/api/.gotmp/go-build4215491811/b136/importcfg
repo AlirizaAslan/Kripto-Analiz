@@ -1,0 +1,12 @@
+# import config
+importmap golang.org/x/crypto/chacha20poly1305=vendor/golang.org/x/crypto/chacha20poly1305
+packagefile crypto=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b080\_pkg_.a
+packagefile crypto/aes=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b107\_pkg_.a
+packagefile crypto/cipher=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b081\_pkg_.a
+packagefile crypto/ecdh=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b109\_pkg_.a
+packagefile crypto/hkdf=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b130\_pkg_.a
+packagefile crypto/rand=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b078\_pkg_.a
+packagefile errors=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b004\_pkg_.a
+packagefile vendor/golang.org/x/crypto/chacha20poly1305=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b137\_pkg_.a
+packagefile internal/byteorder=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b013\_pkg_.a
+packagefile math/bits=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b038\_pkg_.a

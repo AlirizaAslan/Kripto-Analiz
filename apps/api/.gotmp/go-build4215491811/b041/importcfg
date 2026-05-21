@@ -1,0 +1,6 @@
+# import config
+packagefile internal/race=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b026\_pkg_.a
+packagefile internal/sync=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b042\_pkg_.a
+packagefile internal/synctest=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b044\_pkg_.a
+packagefile runtime=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b010\_pkg_.a
+packagefile sync/atomic=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b043\_pkg_.a

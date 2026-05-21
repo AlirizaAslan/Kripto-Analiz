@@ -1,0 +1,5 @@
+# import config
+packagefile crypto=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b080\_pkg_.a
+packagefile crypto/cipher=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b081\_pkg_.a
+packagefile crypto/internal/boring/sig=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b103\_pkg_.a
+packagefile hash=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b075\_pkg_.a

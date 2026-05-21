@@ -1,0 +1,9 @@
+# import config
+packagefile bytes=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b068\_pkg_.a
+packagefile crypto/internal/fips140=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b083\_pkg_.a
+packagefile crypto/internal/fips140/check=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b086\_pkg_.a
+packagefile crypto/internal/fips140/drbg=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b096\_pkg_.a
+packagefile crypto/internal/fips140/sha3=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b092\_pkg_.a
+packagefile crypto/internal/fips140/subtle=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b093\_pkg_.a
+packagefile crypto/internal/fips140deps/byteorder=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b089\_pkg_.a
+packagefile errors=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b004\_pkg_.a

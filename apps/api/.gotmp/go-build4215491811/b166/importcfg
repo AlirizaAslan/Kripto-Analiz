@@ -1,0 +1,7 @@
+# import config
+importmap golang.org/x/text/transform=vendor/golang.org/x/text/transform
+importmap golang.org/x/text/unicode/bidi=vendor/golang.org/x/text/unicode/bidi
+packagefile errors=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b004\_pkg_.a
+packagefile vendor/golang.org/x/text/transform=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b167\_pkg_.a
+packagefile vendor/golang.org/x/text/unicode/bidi=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b168\_pkg_.a
+packagefile unicode/utf8=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b040\_pkg_.a

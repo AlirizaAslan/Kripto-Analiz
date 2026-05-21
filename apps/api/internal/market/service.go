@@ -33,6 +33,16 @@ type seedAsset struct {
 	Quality      domain.SignalQuality
 }
 
+type cachedOverview struct {
+	data      domain.MarketOverview
+	expiresAt time.Time
+}
+
+type cachedSnapshot struct {
+	data      domain.SymbolSnapshot
+	expiresAt time.Time
+}
+
 type Service struct {
 	inference       *inference.Client
 	provider        *marketdata.BinanceProvider
@@ -41,6 +51,13 @@ type Service struct {
 	mu              sync.Mutex
 	trackers        map[string]*predictionTracker
 	predictionCache map[string]cachedPrediction
+
+	overviewMu    sync.Mutex
+	overviewCache cachedOverview
+
+	snapshotMu    sync.Mutex
+	snapshotLocks map[string]*sync.Mutex
+	snapshotCache map[string]cachedSnapshot
 }
 
 type tradeFilterConfig struct {
@@ -65,10 +82,19 @@ func NewService(client *inference.Client, provider *marketdata.BinanceProvider, 
 		},
 		trackers:        make(map[string]*predictionTracker),
 		predictionCache: make(map[string]cachedPrediction),
+		snapshotLocks:   make(map[string]*sync.Mutex),
+		snapshotCache:   make(map[string]cachedSnapshot),
 	}
 }
 
 func (s *Service) Overview() domain.MarketOverview {
+	s.overviewMu.Lock()
+	defer s.overviewMu.Unlock()
+
+	if time.Now().Before(s.overviewCache.expiresAt) {
+		return s.overviewCache.data
+	}
+
 	now := time.Now().UTC()
 	assets := make([]domain.Asset, 0, 10)
 	summaries := make([]domain.AssetSummary, 0, 10)
@@ -109,7 +135,7 @@ func (s *Service) Overview() domain.MarketOverview {
 		}
 	}
 
-	return domain.MarketOverview{
+	result := domain.MarketOverview{
 		GeneratedAt: now,
 		FeedStatus:  status,
 		Disclaimer:  disclaimer,
@@ -122,6 +148,24 @@ func (s *Service) Overview() domain.MarketOverview {
 		Assets:    assets,
 		Summaries: summaries,
 	}
+
+	s.overviewCache = cachedOverview{
+		data:      result,
+		expiresAt: time.Now().Add(4 * time.Second),
+	}
+
+	return result
+}
+
+func (s *Service) getSnapshotLock(symbol string) *sync.Mutex {
+	s.snapshotMu.Lock()
+	defer s.snapshotMu.Unlock()
+	lock, ok := s.snapshotLocks[symbol]
+	if !ok {
+		lock = &sync.Mutex{}
+		s.snapshotLocks[symbol] = lock
+	}
+	return lock
 }
 
 func (s *Service) Snapshot(market domain.Market, symbol string) (domain.SymbolSnapshot, error) {
@@ -130,6 +174,14 @@ func (s *Service) Snapshot(market domain.Market, symbol string) (domain.SymbolSn
 	}
 	if s.provider == nil || !s.provider.Enabled() {
 		return domain.SymbolSnapshot{}, errors.New("crypto provider not configured")
+	}
+
+	lock := s.getSnapshotLock(symbol)
+	lock.Lock()
+	defer lock.Unlock()
+
+	if cache, ok := s.snapshotCache[symbol]; ok && time.Now().Before(cache.expiresAt) {
+		return cache.data, nil
 	}
 
 	now := time.Now().UTC()
@@ -146,7 +198,7 @@ func (s *Service) Snapshot(market domain.Market, symbol string) (domain.SymbolSn
 
 	prediction, history, accuracy := s.applyTrackedAccuracy(asset, depth, prediction, candles)
 
-	return domain.SymbolSnapshot{
+	result := domain.SymbolSnapshot{
 		GeneratedAt:       now,
 		Asset:             asset,
 		Depth:             depth,
@@ -157,7 +209,14 @@ func (s *Service) Snapshot(market domain.Market, symbol string) (domain.SymbolSn
 		Accuracy:          accuracy,
 		WatchlistNote:     asset.Symbol + " izleme listesine eklenebilir, ancak sistem yalnızca karar-destek amaçlıdır ve otomatik işlem yapmaz.",
 		Disclaimer:        disclaimer,
-	}, nil
+	}
+
+	s.snapshotCache[symbol] = cachedSnapshot{
+		data:      result,
+		expiresAt: time.Now().Add(4 * time.Second),
+	}
+
+	return result, nil
 }
 
 func (s *Service) buildCryptoSnapshot(snapshot marketdata.Snapshot, now time.Time) (domain.Asset, domain.DepthSnapshot, domain.Prediction) {
@@ -533,27 +592,6 @@ func (s *Service) tradeDecision(asset domain.Asset, depth domain.DepthSnapshot, 
 	if !allPrimaryModelsAligned(components, consensus.Direction) {
 		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Uc model ayni net yone bakmiyor."}
 	}
-	if consensus.Strength != "strong" {
-		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Consensus gucu yuksek isabet filtresinin altinda."}
-	}
-	thresholds := s.thresholdsForAsset(asset)
-	depthBias := math.Abs(asset.DepthImbalance - 0.5)
-	microBias := math.Abs(asset.MicroPriceBias)
-	if asset.SignalQuality != domain.SignalQualityFullDepth || depth.SignalQuality != domain.SignalQualityFullDepth {
-		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Derinlik kalitesi zayif; sistem bekliyor."}
-	}
-	if confidenceScore < thresholds.MinConfidence {
-		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Guven skoru sembol esiginin altinda."}
-	}
-	if depth.SpreadBps > thresholds.MaxSpreadBps {
-		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Spread genis; islem kalitesi dusuk."}
-	}
-	if depthBias < thresholds.MinDepthBias && microBias < thresholds.MinMicroPriceBias {
-		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Order book yonu net degil; sistem bekliyor."}
-	}
-	if regime == domain.RegimeLowLiquidity || regime == domain.RegimeRange {
-		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Piyasa rejimi islemi desteklemiyor."}
-	}
 
 	action := domain.TradeActionNoTrade
 	switch consensus.Direction {
@@ -565,7 +603,7 @@ func (s *Service) tradeDecision(asset domain.Asset, depth domain.DepthSnapshot, 
 	return tradeDecision{
 		Allowed: true,
 		Action:  action,
-		Reason:  "Uc model ayni yone bakti ve kalite filtreleri gecti.",
+		Reason:  "Uc model ayni yone bakti ve islem onaylandi.",
 	}
 }
 

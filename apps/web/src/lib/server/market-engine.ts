@@ -519,7 +519,7 @@ function buildPrediction(asset: Asset, depth: DepthSnapshot, now: number): Predi
 		return currentCount > bestCount ? direction : best;
 	}, '');
 	const consensusCount = consensusDirection ? (directionCounts.get(consensusDirection) ?? 0) : 0;
-	const consensusActive = consensusCount >= 2;
+	const consensusActive = consensusCount === 3;
 	const averageConsensusConfidence =
 		(directionProbabilitySums.get(consensusDirection as Prediction['predictedDirection']) ?? 0) / Math.max(consensusCount, 1);
 	const consensusStrength =
@@ -529,8 +529,8 @@ function buildPrediction(asset: Asset, depth: DepthSnapshot, now: number): Predi
 				? 'aligned'
 				: 'diverged';
 	const consensusSummary = consensusActive
-		? 'At least two models are aligned on the next-candle direction, so the consensus layer adds a bounded confidence boost.'
-		: 'The model majority is not aligned, so the system stays guarded instead of applying a consensus boost.';
+		? 'All three models are aligned on the next-candle direction, so the consensus layer adds a bounded confidence boost.'
+		: 'All three models are not aligned on the next-candle direction, so the system stays guarded instead of applying a consensus boost.';
 	const confidenceBoost = consensusStrength === 'strong' ? 0.06 : consensusStrength === 'aligned' ? 0.03 : 0;
 	const hitRateBoost = consensusStrength === 'strong' ? 0.05 : consensusStrength === 'aligned' ? 0.02 : 0;
 	const confidenceScore = round(
@@ -562,11 +562,11 @@ function buildPrediction(asset: Asset, depth: DepthSnapshot, now: number): Predi
 		modelComponents.slice(0, 3).every((component) => component.predictedDirection === consensusDirection);
 	let tradeAllowed = false;
 	let tradeAction: Prediction['tradeAction'] = 'no_trade';
-	let tradeFilterReason = 'Model cogunlugu ayni yone bakmiyor.';
+	let tradeFilterReason = 'Uc model ayni yone bakmiyor.';
 	if (finalPredictedDirection === 'neutral' || consensusDirection === 'neutral') {
 		tradeFilterReason = 'Model sonucu yatay; sistem isleme girmiyor.';
 	} else if (!consensusActive) {
-		tradeFilterReason = 'Model cogunlugu ayni yone bakmiyor.';
+		tradeFilterReason = 'Uc model ayni yone bakmiyor.';
 	} else if (finalPredictedDirection !== consensusDirection) {
 		tradeFilterReason = 'Nihai tahmin ve model consensus ayni yonde degil.';
 	} else if (hasNeutralModel) {
@@ -588,7 +588,7 @@ function buildPrediction(asset: Asset, depth: DepthSnapshot, now: number): Predi
 	} else {
 		tradeAllowed = true;
 		tradeAction = finalPredictedDirection === 'up' ? 'buy' : finalPredictedDirection === 'down' ? 'sell' : 'no_trade';
-		tradeFilterReason = 'Model cogunlugu ayni yone bakti ve kalite filtreleri gecti.';
+		tradeFilterReason = 'Uc model ayni yone bakti ve kalite filtreleri gecti.';
 	}
 	return {
 		candleInterval: '1m',

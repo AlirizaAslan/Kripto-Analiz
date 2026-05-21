@@ -1,0 +1,12 @@
+# import config
+importmap golang.org/x/crypto/chacha20=vendor/golang.org/x/crypto/chacha20
+importmap golang.org/x/crypto/internal/alias=vendor/golang.org/x/crypto/internal/alias
+importmap golang.org/x/crypto/internal/poly1305=vendor/golang.org/x/crypto/internal/poly1305
+importmap golang.org/x/sys/cpu=vendor/golang.org/x/sys/cpu
+packagefile crypto/cipher=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b081\_pkg_.a
+packagefile encoding/binary=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b073\_pkg_.a
+packagefile errors=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b004\_pkg_.a
+packagefile vendor/golang.org/x/crypto/chacha20=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b138\_pkg_.a
+packagefile vendor/golang.org/x/crypto/internal/alias=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b139\_pkg_.a
+packagefile vendor/golang.org/x/crypto/internal/poly1305=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b140\_pkg_.a
+packagefile vendor/golang.org/x/sys/cpu=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b141\_pkg_.a

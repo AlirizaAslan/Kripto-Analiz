@@ -1,0 +1,11 @@
+# import config
+importmap golang.org/x/text/secure/bidirule=vendor/golang.org/x/text/secure/bidirule
+importmap golang.org/x/text/unicode/bidi=vendor/golang.org/x/text/unicode/bidi
+importmap golang.org/x/text/unicode/norm=vendor/golang.org/x/text/unicode/norm
+packagefile fmt=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b003\_pkg_.a
+packagefile vendor/golang.org/x/text/secure/bidirule=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b166\_pkg_.a
+packagefile vendor/golang.org/x/text/unicode/bidi=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b168\_pkg_.a
+packagefile vendor/golang.org/x/text/unicode/norm=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b169\_pkg_.a
+packagefile math=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b037\_pkg_.a
+packagefile strings=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b069\_pkg_.a
+packagefile unicode/utf8=c:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build4215491811\b040\_pkg_.a
