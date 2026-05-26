@@ -154,6 +154,17 @@ export type AccuracySummary = {
 	sampleSize: number;
 	lifetimeSampleSize: number;
 	consensusSampleSize: number;
+	recoverySteps: RecoveryStep[];
+	maxRecoveryStep: number;
+};
+
+export type RecoveryStep = {
+	stepNumber: number;
+	attempts: number;
+	wins: number;
+	stepWinRate: number;
+	cumulativeWins: number;
+	cumulativeRate: number;
 };
 
 export type AssetSummary = {

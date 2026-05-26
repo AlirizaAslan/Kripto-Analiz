@@ -399,7 +399,7 @@ func (s *PredictionStore) pendingRows(symbol string) ([]predictionRow, error) {
 	rows, err := s.db.Query(
 		`SELECT symbol, market, target_candle_start, predicted_direction, confidence_score, consensus_active, consensus_direction, trade_allowed, trade_action, trade_filter_reason, signal_quality, consensus_strength, regime_label, spread_bps, depth_imbalance, micro_price_bias, volatility_score, prediction_hour_utc, prediction_volume, resolved_volume, model_directions
 		FROM prediction_records
-		WHERE symbol = ? AND (realized_direction IS NULL OR EXISTS (
+		WHERE symbol = ? AND predicted_direction IN ('up', 'down') AND (realized_direction IS NULL OR EXISTS (
 			SELECT 1 FROM prediction_evaluations pe WHERE pe.symbol = prediction_records.symbol AND pe.target_candle_start = prediction_records.target_candle_start AND pe.realized_direction IS NULL
 		) OR (trade_allowed = 1 AND realized_direction = 'neutral') OR EXISTS (
 			SELECT 1 FROM prediction_evaluations pe WHERE pe.symbol = prediction_records.symbol AND pe.target_candle_start = prediction_records.target_candle_start AND pe.trade_allowed = 1 AND pe.realized_direction = 'neutral'
@@ -430,7 +430,7 @@ func (s *PredictionStore) resolvedRows(symbol string) ([]predictionRow, error) {
 	rows, err := s.db.Query(
 		`SELECT symbol, market, target_candle_start, predicted_direction, confidence_score, consensus_active, consensus_direction, trade_allowed, trade_action, trade_filter_reason, signal_quality, consensus_strength, regime_label, spread_bps, depth_imbalance, micro_price_bias, volatility_score, prediction_hour_utc, prediction_volume, resolved_volume, realized_direction, was_correct, model_directions
 		FROM prediction_records
-		WHERE symbol = ? AND realized_direction IS NOT NULL
+		WHERE symbol = ? AND predicted_direction IN ('up', 'down') AND realized_direction IS NOT NULL
 		ORDER BY target_candle_start ASC`,
 		symbol,
 	)
@@ -455,9 +455,10 @@ func (s *PredictionStore) resolvedRows(symbol string) ([]predictionRow, error) {
 
 func (s *PredictionStore) resolvedEvaluations(symbol string) ([]evaluationRow, error) {
 	rows, err := s.db.Query(
-		`SELECT target_candle_start, horizon, was_correct, trade_allowed, consensus_active
-		FROM prediction_evaluations
-		WHERE symbol = ? AND realized_direction IS NOT NULL`,
+		`SELECT pe.target_candle_start, pe.horizon, pe.was_correct, pe.trade_allowed, pe.consensus_active
+		FROM prediction_evaluations pe
+		JOIN prediction_records pr ON pe.symbol = pr.symbol AND pe.target_candle_start = pr.target_candle_start
+		WHERE pe.symbol = ? AND pr.predicted_direction IN ('up', 'down') AND pe.realized_direction IS NOT NULL`,
 		symbol,
 	)
 	if err != nil {
@@ -808,6 +809,58 @@ func buildAccuracy(rows []predictionRow, evals []evaluationRow, recentWindow int
 	}
 	winRate := round(float64(totalWins)/float64(len(rows)), 4)
 
+	stepAttempts := make(map[int]int)
+	stepWins := make(map[int]int)
+	currentStep := 1
+
+	for _, row := range rows {
+		if !row.TradeAllowed {
+			continue
+		}
+		stepAttempts[currentStep]++
+		if row.WasCorrect {
+			stepWins[currentStep]++
+			currentStep = 1
+		} else {
+			currentStep++
+		}
+	}
+
+	maxStep := 1
+	for step := range stepAttempts {
+		if step > maxStep {
+			maxStep = step
+		}
+	}
+
+	recoverySteps := make([]domain.RecoveryStep, 0, maxStep)
+	cumulativeWins := 0
+	totalSequences := stepAttempts[1]
+
+	for i := 1; i <= maxStep; i++ {
+		attempts := stepAttempts[i]
+		wins := stepWins[i]
+		if attempts == 0 {
+			continue
+		}
+		
+		stepWinRate := round(float64(wins)/float64(attempts), 4)
+		cumulativeWins += wins
+		cumulativeRate := 0.0
+		if totalSequences > 0 {
+			cumulativeRate = round(float64(cumulativeWins)/float64(totalSequences), 4)
+		}
+		
+		recoverySteps = append(recoverySteps, domain.RecoveryStep{
+			StepNumber:     i,
+			Attempts:       attempts,
+			Wins:           wins,
+			StepWinRate:    stepWinRate,
+			CumulativeWins: cumulativeWins,
+			CumulativeRate: cumulativeRate,
+		})
+	}
+
 	return domain.AccuracySummary{
 		WinRate:                  winRate,
 		LifetimeWinRate:          winRate,
@@ -828,6 +881,8 @@ func buildAccuracy(rows []predictionRow, evals []evaluationRow, recentWindow int
 		SampleSize:               len(rows),
 		LifetimeSampleSize:       len(rows),
 		ConsensusSampleSize:      consensusTotal,
+		RecoverySteps:            recoverySteps,
+		MaxRecoveryStep:          maxStep,
 	}
 }
 

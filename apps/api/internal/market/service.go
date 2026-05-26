@@ -945,7 +945,25 @@ func buildFeatures(asset domain.Asset, depth domain.DepthSnapshot) []domain.Feat
 	realizedVol := round(clamp(asset.VolatilityScore*0.74+math.Abs(asset.ChangePercent24H)/12, 0.04, 1), 4)
 	volumePulse := round(clamp((asset.Volume/math.Max(1, asset.LastPrice*12000))-0.8, -1, 1), 4)
 	depthPressureTrend := round(clamp((asset.DepthImbalance-0.5)*1.2+(asset.OrderFlowImbalance-0.5)*0.8, -1, 1), 4)
-	bookSlope := round((depth.Bids[5].Size-depth.Bids[0].Size-(depth.Asks[5].Size-depth.Asks[0].Size))/math.Max(1, asset.Volume/10000), 4)
+	
+	bid5 := 0.0
+	if len(depth.Bids) > 5 {
+		bid5 = depth.Bids[5].Size
+	}
+	bid0 := 0.0
+	if len(depth.Bids) > 0 {
+		bid0 = depth.Bids[0].Size
+	}
+	ask5 := 0.0
+	if len(depth.Asks) > 5 {
+		ask5 = depth.Asks[5].Size
+	}
+	ask0 := 0.0
+	if len(depth.Asks) > 0 {
+		ask0 = depth.Asks[0].Size
+	}
+	bookSlope := round((bid5-bid0-(ask5-ask0))/math.Max(1, asset.Volume/10000), 4)
+	
 	bookPressure := round(clamp(queueImbalance*0.65+asset.MicroPriceBias*0.35, -1, 1), 4)
 
 	features = append(features,
@@ -1878,4 +1896,21 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func (s *Service) StartBackgroundJobs(ctx context.Context) {
+	ticker := time.NewTicker(10 * time.Second)
+	go func() {
+		// Run once immediately
+		s.Overview()
+		for {
+			select {
+			case <-ctx.Done():
+				ticker.Stop()
+				return
+			case <-ticker.C:
+				s.Overview()
+			}
+		}
+	}()
 }

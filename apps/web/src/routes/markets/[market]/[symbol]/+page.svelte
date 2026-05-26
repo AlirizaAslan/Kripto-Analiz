@@ -1,13 +1,15 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
-	import type { AssetDetail } from '$lib/types';
+	import type { AssetDetail, SymbolStatistics } from '$lib/types';
 	import ProTradingChart from '$lib/chart/ProTradingChart.svelte';
+	import SymbolStatisticsPanel from '$lib/SymbolStatisticsPanel.svelte';
 
-	export let data: AssetDetail;
+	export let data: { detail: AssetDetail; statistics: SymbolStatistics | null };
 
 	type HistoryItem = AssetDetail['predictionHistory'][number];
 
-	let detail = data;
+	let detail = data.detail;
+	let statistics = data.statistics;
 	let loading = false;
 	let lastError = '';
 	let refreshHandle: ReturnType<typeof setInterval> | undefined;
@@ -244,12 +246,15 @@
 	async function refresh() {
 		loading = true;
 		try {
-			const response = await fetch(
-				`/api/markets/${detail.asset.market}/symbols/${detail.asset.symbol}?t=${Date.now()}`,
-				{ cache: 'no-store' }
-			);
-			if (!response.ok) throw new Error('Sembol yenilenemedi');
-			detail = (await response.json()) as AssetDetail;
+			const [detailResponse, statsResponse] = await Promise.all([
+				fetch(`/api/markets/${detail.asset.market}/symbols/${detail.asset.symbol}?t=${Date.now()}`, { cache: 'no-store' }),
+				fetch(`/api/markets/${detail.asset.market}/symbols/${detail.asset.symbol}/statistics?t=${Date.now()}`, { cache: 'no-store' })
+			]);
+			if (!detailResponse.ok) throw new Error('Sembol yenilenemedi');
+			detail = (await detailResponse.json()) as AssetDetail;
+			if (statsResponse.ok) {
+				statistics = (await statsResponse.json()) as SymbolStatistics;
+			}
 			lastError = '';
 		} catch (error) {
 			lastError = error instanceof Error ? error.message : 'Sembol yenilenemedi';
@@ -408,22 +413,72 @@
 				<div><span>Islem ornek</span><strong>{detail.accuracy.tradeSampleSize}</strong></div>
 			</div>
 
-			<div class="stats-callout">
-				<div>
-					<span>Detayli analiz</span>
-					<strong>Saatlik dogruluk, hacim ve kalici tahmin gecmisi</strong>
+			<details class="history-accordion">
+				<summary>
+					{#if displayedHistory.length > 0}
+						{@const latest = displayedHistory[0]}
+						<div class="summary-content">
+							<span class="summary-label">Son Tahmin:</span>
+							<strong>{new Date(latest.targetCandleStart).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</strong>
+							<span class="summary-divider">|</span>
+							<strong class={latest.predictedDirection === 'up' ? 'up' : latest.predictedDirection === 'down' ? 'down' : 'neutral'}>
+								{latest.predictedDirection === 'up' ? 'AL' : latest.predictedDirection === 'down' ? 'SAT' : '-'}
+							</strong>
+							<span class="summary-divider">|</span>
+							<span>
+								{#if latest.isPending}
+									<span class="neutral">Bekliyor</span>
+								{:else if latest.wasCorrect}
+									<span class="badge badge-success">Başarılı</span>
+								{:else}
+									<span class="badge badge-error">Hatalı</span>
+								{/if}
+							</span>
+						</div>
+					{:else}
+						<div class="summary-content">
+							<span class="summary-label">Geçmiş tahmin bulunmuyor</span>
+						</div>
+					{/if}
+				</summary>
+				<div class="accordion-body">
+					<table class="history-table">
+						<thead>
+							<tr>
+								<th>Saat</th>
+								<th>Tahmin</th>
+								<th>Gerçekleşen</th>
+								<th>Sonuç</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each displayedHistory.slice(1, 10) as item}
+								<tr>
+									<td>{new Date(item.targetCandleStart).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</td>
+									<td><strong class={item.predictedDirection === 'up' ? 'up' : item.predictedDirection === 'down' ? 'down' : 'neutral'}>{item.predictedDirection === 'up' ? 'AL' : item.predictedDirection === 'down' ? 'SAT' : '-'}</strong></td>
+									<td>
+										{#if item.isPending}
+											<span class="neutral">Bekliyor</span>
+										{:else}
+											<strong class={item.realizedDirection === 'up' ? 'up' : item.realizedDirection === 'down' ? 'down' : 'neutral'}>{item.realizedDirection === 'up' ? 'Yükseliş' : item.realizedDirection === 'down' ? 'Düşüş' : 'Yatay'}</strong>
+										{/if}
+									</td>
+									<td>
+										{#if item.isPending}
+											-
+										{:else if item.wasCorrect}
+											<span class="badge badge-success">Başarılı</span>
+										{:else}
+											<span class="badge badge-error">Hatalı</span>
+										{/if}
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
 				</div>
-				<div class={`stats-trade-pill ${predictionHeadlineClass()}`}>
-					<span>Bu sembol icin guncel tahmin</span>
-					<strong>{predictionHeadlineLabel()}</strong>
-				</div>
-				<p>
-					Bu sembolun hangi saatlerde daha dogru sonuc verdigini, hacim yogunlugunu ve filtre nedenlerini ayri istatistik sayfasinda gorebilirsiniz.
-				</p>
-				<a class="stats-cta" href={`/statistics/${detail.asset.market}/${detail.asset.symbol}`}>
-					{detail.asset.symbol} istatistik sayfasini ac
-				</a>
-			</div>
+			</details>
+
 		</article>
 
 		<article class="panel side-panel">
@@ -462,6 +517,8 @@
 			<div class="watchlist-note"><p>{detail.watchlistNote}</p></div>
 		</article>
 	</section>
+
+	<SymbolStatisticsPanel item={statistics} {detail} />
 
 	{#if lastError}
 		<p class="error-banner">{lastError}</p>
@@ -761,5 +818,78 @@
 		.stat-grid, .accuracy-grid { grid-template-columns: 1fr; }
 		.prediction-detail-grid { grid-template-columns: 1fr; }
 		.panel-head, .feature-head { flex-direction: column; align-items: flex-start; }
+	}
+
+	.history-accordion {
+		margin-top: 18px;
+		background: #fbfdff;
+		border: 1px solid #e7edf5;
+		border-radius: 18px;
+		overflow: hidden;
+	}
+	.history-accordion summary {
+		padding: 16px;
+		cursor: pointer;
+		font-weight: 600;
+		color: #162131;
+		list-style: none;
+		outline: none;
+	}
+	.history-accordion summary::-webkit-details-marker {
+		display: none;
+	}
+	.summary-content {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 12px;
+	}
+	.summary-label {
+		color: #748397;
+		font-weight: 600;
+		text-transform: uppercase;
+		font-size: 0.75rem;
+		letter-spacing: 0.05em;
+	}
+	.summary-divider {
+		color: #dce6f0;
+	}
+	.accordion-body {
+		padding: 0 16px 16px;
+		border-top: 1px solid #e7edf5;
+		background: #ffffff;
+	}
+	.history-table {
+		width: 100%;
+		border-collapse: collapse;
+		text-align: left;
+		margin-top: 12px;
+	}
+	.history-table th {
+		padding: 10px 12px;
+		color: #748397;
+		font-weight: 500;
+		border-bottom: 1px solid #e7edf5;
+		font-size: 0.9rem;
+	}
+	.history-table td {
+		padding: 12px;
+		border-bottom: 1px solid #f0f4f8;
+		color: #172233;
+		font-size: 0.9rem;
+	}
+	.badge {
+		padding: 4px 8px;
+		border-radius: 6px;
+		font-size: 0.8rem;
+		font-weight: 600;
+	}
+	.badge-success {
+		background: rgba(15, 166, 122, 0.1);
+		color: #0fa67a;
+	}
+	.badge-error {
+		background: rgba(229, 95, 97, 0.1);
+		color: #e55f61;
 	}
 </style>

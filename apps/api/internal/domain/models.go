@@ -206,6 +206,17 @@ type AccuracySummary struct {
 	SampleSize               int                `json:"sampleSize"`
 	LifetimeSampleSize       int                `json:"lifetimeSampleSize"`
 	ConsensusSampleSize      int                `json:"consensusSampleSize"`
+	RecoverySteps            []RecoveryStep     `json:"recoverySteps"`
+	MaxRecoveryStep          int                `json:"maxRecoveryStep"`
+}
+
+type RecoveryStep struct {
+	StepNumber     int     `json:"stepNumber"`
+	Attempts       int     `json:"attempts"`
+	Wins           int     `json:"wins"`
+	StepWinRate    float64 `json:"stepWinRate"`
+	CumulativeWins int     `json:"cumulativeWins"`
+	CumulativeRate float64 `json:"cumulativeRate"`
 }
 
 type AssetSummary struct {

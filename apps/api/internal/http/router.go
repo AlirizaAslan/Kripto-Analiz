@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"log"
 	"net/http"
 
@@ -23,6 +24,7 @@ func NewRouter(cfg config.Config) http.Handler {
 		log.Fatalf("prediction store init failed: %v", err)
 	}
 	marketService := market.NewService(inference.New(cfg.InferenceURL, cfg.InferenceModel), provider, store, cfg)
+	marketService.StartBackgroundJobs(context.Background())
 
 	mux.HandleFunc("GET /health", handlers.Health(cfg))
 	mux.HandleFunc("GET /api/markets/overview", handlers.MarketOverview(marketService))
