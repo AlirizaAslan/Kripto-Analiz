@@ -4,12 +4,13 @@
 	import ProTradingChart from '$lib/chart/ProTradingChart.svelte';
 	import SymbolStatisticsPanel from '$lib/SymbolStatisticsPanel.svelte';
 
-	export let data: { detail: AssetDetail; statistics: SymbolStatistics | null };
+	export let data: { detail: AssetDetail; statistics: SymbolStatistics | null; focusTimestamp: string | null };
 
 	type HistoryItem = AssetDetail['predictionHistory'][number];
 
 	let detail = data.detail;
 	let statistics = data.statistics;
+	let focusTimestamp = data.focusTimestamp;
 	let loading = false;
 	let lastError = '';
 	let refreshHandle: ReturnType<typeof setInterval> | undefined;
@@ -302,7 +303,7 @@
 
 	<section class="top-grid">
 		<article class="chart-panel">
-			<ProTradingChart {detail} />
+			<ProTradingChart {detail} {focusTimestamp} />
 
 			<div class="range-row">
 				<div><span>24s dusuk</span><strong>{formatPrice(detail.asset.range24h.low)}</strong></div>
@@ -518,7 +519,7 @@
 		</article>
 	</section>
 
-	<SymbolStatisticsPanel item={statistics} {detail} />
+	<SymbolStatisticsPanel item={statistics} {detail} {focusTimestamp} />
 
 	{#if lastError}
 		<p class="error-banner">{lastError}</p>

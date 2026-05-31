@@ -1,0 +1,12 @@
+# import config
+packagefile context=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\0d\0d2f169829a81b8cf4c985680f8faa8e5ebae8e65abefc36f6eabd2f01657475-d
+packagefile log=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\fc\fc380c664f3a329c8d461ae2e4f9c93ce4c015e49f20eea498df5975c579448e-d
+packagefile net/http=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\41\41d06b9e872a2bf9a938934aaed018d668bdcdd22257efd69bb95431e27db74e-d
+packagefile pulsealpha/api/internal/config=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\86\863ce0cd1ead6608f5a7f9fc24eb7a66220bdf1344612aa6fd1b3a6e8f321b48-d
+packagefile pulsealpha/api/internal/http/handlers=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build470836880\b184\_pkg_.a
+packagefile pulsealpha/api/internal/http/middleware=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\fb\fb9a59e44abee1f11f78a43bd42f800a49e741336dbcd7aac1f700ccf9c25725-d
+packagefile pulsealpha/api/internal/inference=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\28\2860120e5932b7faaac24ce04074435c632384acad7450875869dbd87ab564df-d
+packagefile pulsealpha/api/internal/market=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gotmp\go-build470836880\b188\_pkg_.a
+packagefile pulsealpha/api/internal/marketdata=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\4a\4a8c3c6a02115aa97ff50f07520a1bcf665f0180736acb0fdc5003f5629bbed3-d
+packagefile pulsealpha/api/internal/realtime=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\0a\0a3271f8f9a1decbc990a0d3fec62dea58ff502dd49e273cbb13832f24cc94ba-d
+packagefile pulsealpha/api/internal/storage=C:\Users\mucur\OneDrive\Masaüstü\vscode\proje\apps\api\.gocache\3a\3a0c4bdb0a329898a5f0bc9a1a8ed51e0f8660c9e037ddd3cacce40b92e81116-d

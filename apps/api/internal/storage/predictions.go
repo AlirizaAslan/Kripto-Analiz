@@ -673,8 +673,10 @@ func buildHistory(rows []predictionRow, pendingRows []predictionRow, historyLimi
 func buildAccuracy(rows []predictionRow, evals []evaluationRow, recentWindow int) domain.AccuracySummary {
 	if len(rows) == 0 {
 		return domain.AccuracySummary{
-			HorizonWinRates:    map[string]float64{},
-			HorizonSampleSizes: map[string]int{},
+			HorizonWinRates:      map[string]float64{},
+			HorizonSampleSizes:   map[string]int{},
+			RecoveryWrongCandles: []domain.RecoveryWrongCandle{},
+			RecoverySteps:        []domain.RecoveryStep{},
 		}
 	}
 
@@ -843,14 +845,14 @@ func buildAccuracy(rows []predictionRow, evals []evaluationRow, recentWindow int
 		if attempts == 0 {
 			continue
 		}
-		
+
 		stepWinRate := round(float64(wins)/float64(attempts), 4)
 		cumulativeWins += wins
 		cumulativeRate := 0.0
 		if totalSequences > 0 {
 			cumulativeRate = round(float64(cumulativeWins)/float64(totalSequences), 4)
 		}
-		
+
 		recoverySteps = append(recoverySteps, domain.RecoveryStep{
 			StepNumber:     i,
 			Attempts:       attempts,
@@ -882,8 +884,39 @@ func buildAccuracy(rows []predictionRow, evals []evaluationRow, recentWindow int
 		LifetimeSampleSize:       len(rows),
 		ConsensusSampleSize:      consensusTotal,
 		RecoverySteps:            recoverySteps,
+		RecoveryWrongCandles:     buildRecoveryWrongCandles(rows),
 		MaxRecoveryStep:          maxStep,
 	}
+}
+
+func buildRecoveryWrongCandles(rows []predictionRow) []domain.RecoveryWrongCandle {
+	wrongCandles := make([]domain.RecoveryWrongCandle, 0, len(rows))
+	currentStep := 1
+
+	for _, row := range rows {
+		if !row.TradeAllowed {
+			continue
+		}
+		if currentStep >= 7 && !row.WasCorrect {
+			wrongCandles = append(wrongCandles, domain.RecoveryWrongCandle{
+				StepNumber:         currentStep,
+				TargetCandleStart:  row.TargetCandleStart,
+				PredictedDirection: row.PredictedDirection,
+				RealizedDirection:  row.RealizedDirection,
+				ConfidenceScore:    row.ConfidenceScore,
+				TradeAction:        domain.TradeAction(row.TradeAction),
+				TradeAllowed:       row.TradeAllowed,
+				WasCorrect:         row.WasCorrect,
+			})
+		}
+		if row.WasCorrect {
+			currentStep = 1
+		} else {
+			currentStep++
+		}
+	}
+
+	return wrongCandles
 }
 
 func buildComponentRates(rows []predictionRow, recentWindow int) map[string]ComponentAccuracy {

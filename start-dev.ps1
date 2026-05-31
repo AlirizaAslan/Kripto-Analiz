@@ -3,8 +3,8 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $apiDir = Join-Path $root 'apps\api'
 
-$apiUrl = 'http://localhost:8080'
-$webUrl = 'http://localhost:5173'
+$apiUrl = 'http://localhost:8081'
+$webUrl = 'http://localhost:5174'
 
 Write-Host "Starting PulseAlpha backend and frontend..."
 Write-Host "Backend: $apiUrl"
@@ -23,7 +23,7 @@ go run .\cmd\server
 $frontendCommand = @"
 Set-Location '$root'
 `$env:PULSEALPHA_API_BASE_URL = '$apiUrl'
-cmd /c npm --workspace apps/web run dev -- --host 0.0.0.0
+cmd /c npm --workspace apps/web run dev -- --host 0.0.0.0 --port 5174
 "@
 
 Start-Process powershell -ArgumentList @('-NoExit', '-Command', $backendCommand) | Out-Null

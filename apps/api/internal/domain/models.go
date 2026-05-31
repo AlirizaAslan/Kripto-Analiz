@@ -187,27 +187,28 @@ type Candle struct {
 }
 
 type AccuracySummary struct {
-	WinRate                  float64            `json:"winRate"`
-	LifetimeWinRate          float64            `json:"lifetimeWinRate"`
-	RecentWindowWinRate      float64            `json:"recentWindowWinRate"`
-	Recent6WinRate           float64            `json:"recent6WinRate"`
-	Recent7WinRate           float64            `json:"recent7WinRate"`
-	ConsensusWinRate         float64            `json:"consensusWinRate"`
-	TradeWinRate             float64            `json:"tradeWinRate"`
-	TradeSampleSize          int                `json:"tradeSampleSize"`
-	ConsensusTradeWinRate    float64            `json:"consensusTradeWinRate"`
-	ConsensusTradeSampleSize int                `json:"consensusTradeSampleSize"`
-	HorizonWinRates          map[string]float64 `json:"horizonWinRates"`
-	HorizonSampleSizes       map[string]int     `json:"horizonSampleSizes"`
-	CurrentStreak            int                `json:"currentStreak"`
-	StreakDirection          string             `json:"streakDirection"`
-	BullishAccuracy          float64            `json:"bullishAccuracy"`
-	BearishAccuracy          float64            `json:"bearishAccuracy"`
-	SampleSize               int                `json:"sampleSize"`
-	LifetimeSampleSize       int                `json:"lifetimeSampleSize"`
-	ConsensusSampleSize      int                `json:"consensusSampleSize"`
-	RecoverySteps            []RecoveryStep     `json:"recoverySteps"`
-	MaxRecoveryStep          int                `json:"maxRecoveryStep"`
+	WinRate                  float64               `json:"winRate"`
+	LifetimeWinRate          float64               `json:"lifetimeWinRate"`
+	RecentWindowWinRate      float64               `json:"recentWindowWinRate"`
+	Recent6WinRate           float64               `json:"recent6WinRate"`
+	Recent7WinRate           float64               `json:"recent7WinRate"`
+	ConsensusWinRate         float64               `json:"consensusWinRate"`
+	TradeWinRate             float64               `json:"tradeWinRate"`
+	TradeSampleSize          int                   `json:"tradeSampleSize"`
+	ConsensusTradeWinRate    float64               `json:"consensusTradeWinRate"`
+	ConsensusTradeSampleSize int                   `json:"consensusTradeSampleSize"`
+	HorizonWinRates          map[string]float64    `json:"horizonWinRates"`
+	HorizonSampleSizes       map[string]int        `json:"horizonSampleSizes"`
+	CurrentStreak            int                   `json:"currentStreak"`
+	StreakDirection          string                `json:"streakDirection"`
+	BullishAccuracy          float64               `json:"bullishAccuracy"`
+	BearishAccuracy          float64               `json:"bearishAccuracy"`
+	SampleSize               int                   `json:"sampleSize"`
+	LifetimeSampleSize       int                   `json:"lifetimeSampleSize"`
+	ConsensusSampleSize      int                   `json:"consensusSampleSize"`
+	RecoverySteps            []RecoveryStep        `json:"recoverySteps"`
+	RecoveryWrongCandles     []RecoveryWrongCandle `json:"recoveryWrongCandles"`
+	MaxRecoveryStep          int                   `json:"maxRecoveryStep"`
 }
 
 type RecoveryStep struct {
@@ -217,6 +218,17 @@ type RecoveryStep struct {
 	StepWinRate    float64 `json:"stepWinRate"`
 	CumulativeWins int     `json:"cumulativeWins"`
 	CumulativeRate float64 `json:"cumulativeRate"`
+}
+
+type RecoveryWrongCandle struct {
+	StepNumber         int         `json:"stepNumber"`
+	TargetCandleStart  time.Time   `json:"targetCandleStart"`
+	PredictedDirection string      `json:"predictedDirection"`
+	RealizedDirection  string      `json:"realizedDirection"`
+	ConfidenceScore    float64     `json:"confidenceScore"`
+	TradeAction        TradeAction `json:"tradeAction"`
+	TradeAllowed       bool        `json:"tradeAllowed"`
+	WasCorrect         bool        `json:"wasCorrect"`
 }
 
 type AssetSummary struct {

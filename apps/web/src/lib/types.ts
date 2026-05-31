@@ -155,6 +155,7 @@ export type AccuracySummary = {
 	lifetimeSampleSize: number;
 	consensusSampleSize: number;
 	recoverySteps: RecoveryStep[];
+	recoveryWrongCandles: RecoveryWrongCandle[];
 	maxRecoveryStep: number;
 };
 
@@ -165,6 +166,17 @@ export type RecoveryStep = {
 	stepWinRate: number;
 	cumulativeWins: number;
 	cumulativeRate: number;
+};
+
+export type RecoveryWrongCandle = {
+	stepNumber: number;
+	targetCandleStart: string;
+	predictedDirection: 'up' | 'down' | 'neutral';
+	realizedDirection: 'up' | 'down' | 'neutral' | '';
+	confidenceScore: number;
+	tradeAction: TradeAction;
+	tradeAllowed: boolean;
+	wasCorrect: boolean;
 };
 
 export type AssetSummary = {

@@ -3,6 +3,7 @@
 
 	export let item: SymbolStatistics | null = null;
 	export let detail: AssetDetail;
+	export let focusTimestamp: string | null = null;
 
 	function formatPercent(rate: number) {
 		return `${Math.round(rate * 100)}%`;
@@ -115,6 +116,10 @@
 			minute: '2-digit',
 			timeZone: 'Europe/Istanbul'
 		});
+	}
+
+	function candleLink(timestamp: string) {
+		return `/markets/${detail.asset.market}/${detail.asset.symbol}?focus=${encodeURIComponent(timestamp)}`;
 	}
 
 	let viewMode: 'all' | 'traded' = 'all';
@@ -312,6 +317,41 @@
 				{:else}
 					<tr>
 						<td colspan="6" class="text-center">Henuz yeterli islem verisi yok.</td>
+					</tr>
+				{/if}
+			</tbody>
+		</table>
+	</div>
+
+	<div class="table-container">
+		<table class="history-table compact-table">
+			<thead>
+				<tr>
+					<th>Adim</th>
+					<th>Tarih</th>
+					<th>Saat</th>
+					<th>Yon</th>
+					<th>Gercek</th>
+					<th>Guven</th>
+					<th>Odak</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#if item.accuracySummary.recoveryWrongCandles && item.accuracySummary.recoveryWrongCandles.length > 0}
+					{#each item.accuracySummary.recoveryWrongCandles as candle}
+						<tr class="wrong-candle-row">
+							<td>{candle.stepNumber}. Islem</td>
+							<td>{formatDate(candle.targetCandleStart)}</td>
+							<td>{formatTime(candle.targetCandleStart)}</td>
+							<td><strong class={getDirectionClass(candle.predictedDirection)}>{predictionActionLabel(candle.predictedDirection)}</strong></td>
+							<td><strong class={getDirectionClass(candle.realizedDirection)}>{getDirectionLabel(candle.realizedDirection)}</strong></td>
+							<td>{Math.round(candle.confidenceScore * 100)}%</td>
+							<td><a class="focus-link" href={candleLink(candle.targetCandleStart)}>Mumu ac</a></td>
+						</tr>
+					{/each}
+				{:else}
+					<tr>
+						<td colspan="7" class="text-center">7. islem ve sonrasindaki hatali mum kaydi yok.</td>
 					</tr>
 				{/if}
 			</tbody>
@@ -645,6 +685,22 @@
 		.kpi-grid, .insight-grid, .detail-grid {
 			grid-template-columns: 1fr 1fr;
 		}
+	}
+
+	.focus-link {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 6px 10px;
+		border-radius: 999px;
+		background: rgba(46, 124, 246, 0.08);
+		color: #1c4da1;
+		font-weight: 700;
+		white-space: nowrap;
+	}
+
+	.wrong-candle-row {
+		background: rgba(229, 95, 97, 0.04);
 	}
 
 	@media (max-width: 760px) {

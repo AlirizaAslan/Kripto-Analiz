@@ -242,7 +242,7 @@ func (s *Service) Snapshot(market domain.Market, symbol string) (domain.SymbolSn
 
 func (s *Service) buildCryptoSnapshot(snapshot marketdata.Snapshot, now time.Time) (domain.Asset, domain.DepthSnapshot, domain.Prediction) {
 	asset := buildCryptoAsset(snapshot)
-	features := buildFeatures(asset, snapshot.Depth)
+	features := buildFeatures(asset, snapshot.Depth, snapshot.Candles)
 	prediction := s.buildPrediction(asset, snapshot.Depth, features, trimCandles(snapshot.Candles, 30), now)
 	return asset, snapshot.Depth, prediction
 }
@@ -284,7 +284,7 @@ func (s *Service) buildCryptoPlaceholderSnapshot(instrument marketdata.Instrumen
 	asset.SignalQuality = domain.SignalQualityDegraded
 	depth := buildDepth(asset, now)
 	candles := buildCandles(asset, now, 30)
-	prediction := s.buildPrediction(asset, depth, buildFeatures(asset, depth), candles, now)
+	prediction := s.buildPrediction(asset, depth, buildFeatures(asset, depth, candles), candles, now)
 	return asset, depth, prediction, candles
 }
 
@@ -350,7 +350,7 @@ func (s *Service) buildSnapshot(seed seedAsset, now time.Time) (domain.Asset, do
 	asset := buildAsset(seed, now)
 	depth := buildDepth(asset, now)
 	candles := buildCandles(asset, now, 30)
-	features := buildFeatures(asset, depth)
+	features := buildFeatures(asset, depth, candles)
 	prediction := s.buildPrediction(asset, depth, features, candles, now)
 	return asset, depth, prediction
 }
@@ -437,7 +437,7 @@ func (s *Service) buildPrediction(asset domain.Asset, depth domain.DepthSnapshot
 		predictedDirection(response.UpProbability, response.DownProbability, response.NeutralProbability),
 		consensus,
 	)
-	tradePlan := s.tradeDecision(asset, depth, consensus, confidenceScore, regime, finalPredictedDirection, response.ModelComponents)
+	tradePlan := s.tradeDecision(asset, depth, consensus, confidenceScore, regime, finalPredictedDirection, response.UpProbability, response.DownProbability, response.RiskLabel, features, response.ModelComponents)
 	if !isTrackablePrediction(consensus, finalPredictedDirection, response.ModelComponents) {
 		tradePlan = tradeDecision{
 			Allowed: false,
@@ -577,6 +577,39 @@ func (s *Service) currentAccuracy(symbol string) domain.AccuracySummary {
 	return domain.AccuracySummary{}
 }
 
+func smartDCAProbabilityFloor(accuracy domain.AccuracySummary, regime domain.RegimeLabel) float64 {
+	floor := 0.60
+	stepRates := map[int]float64{}
+	for _, step := range accuracy.RecoverySteps {
+		stepRates[step.StepNumber] = step.StepWinRate
+	}
+
+	if step1, ok := stepRates[1]; ok && step1 > 0 {
+		floor = math.Max(floor, clamp(0.58+step1*0.04, 0.60, 0.66))
+	}
+	if step2, ok := stepRates[2]; ok && accuracy.MaxRecoveryStep >= 2 {
+		floor = math.Max(floor, clamp(0.60+(0.58-step2)*0.12, 0.60, 0.69))
+	}
+	if step3, ok := stepRates[3]; ok && accuracy.MaxRecoveryStep >= 3 {
+		floor = math.Max(floor, clamp(0.62+(0.57-step3)*0.14, 0.62, 0.72))
+	}
+
+	if accuracy.TradeSampleSize > 0 && accuracy.TradeWinRate < 0.55 {
+		floor += 0.03
+	}
+	if accuracy.CurrentStreak > 0 && accuracy.StreakDirection == "loss" {
+		floor += 0.02
+	}
+	if regime == domain.RegimeTrend {
+		floor = math.Max(floor, 0.64)
+	}
+	if regime == domain.RegimeHighVolatility {
+		floor += 0.03
+	}
+
+	return clamp(floor, 0.58, 0.74)
+}
+
 func classifyRegime(asset domain.Asset, depth domain.DepthSnapshot, candles []domain.Candle) domain.RegimeLabel {
 	if asset.SignalQuality != domain.SignalQualityFullDepth || depth.SpreadBps > 12 {
 		return domain.RegimeLowLiquidity
@@ -635,7 +668,7 @@ func (s *Service) thresholdsForAsset(asset domain.Asset) symbolTradeThresholds {
 	return thresholds
 }
 
-func (s *Service) tradeDecision(asset domain.Asset, depth domain.DepthSnapshot, consensus consensusSummary, confidenceScore float64, regime domain.RegimeLabel, predictedDirection string, components []domain.ModelComponent) tradeDecision {
+func (s *Service) tradeDecision(asset domain.Asset, depth domain.DepthSnapshot, consensus consensusSummary, confidenceScore float64, regime domain.RegimeLabel, predictedDirection string, upProbability float64, downProbability float64, risk domain.RiskLabel, features []domain.FeatureAttribution, components []domain.ModelComponent) tradeDecision {
 	if !consensus.Active || consensus.Direction == "" {
 		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Uc model ayni yone bakmiyor."}
 	}
@@ -655,6 +688,53 @@ func (s *Service) tradeDecision(asset domain.Asset, depth domain.DepthSnapshot, 
 		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Uc model ayni net yone bakmiyor."}
 	}
 
+	accuracy := s.currentAccuracy(asset.Symbol)
+	if accuracy.SampleSize > 0 && accuracy.SampleSize < s.filter.MinConsensusSamples {
+		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Yeterli gecmis onay yok; erken giris engellendi."}
+	}
+	if risk == domain.RiskHigh || regime == domain.RegimeHighVolatility {
+		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Risk yuksek; ilk giris tamamen engellendi."}
+	}
+	thresholds := s.thresholdsForAsset(asset)
+	if depth.SpreadBps > thresholds.MaxSpreadBps {
+		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Spread cok genis; isleme girilmiyor."}
+	}
+	if confidenceScore < thresholds.MinConfidence {
+		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Confidence dusuk; sinyal bekletildi."}
+	}
+
+	directionalProbability := downProbability
+	if predictedDirection == "up" {
+		directionalProbability = upProbability
+	}
+
+	minDirectionalProbability := smartDCAProbabilityFloor(accuracy, regime)
+	if asset.SignalQuality != domain.SignalQualityFullDepth {
+		minDirectionalProbability += 0.04
+	}
+	minDirectionalProbability = clamp(minDirectionalProbability, 0.58, 0.74)
+
+	trendSlope, _ := featureValue(features, "trend_15m_slope")
+	vwapDistanceBps, _ := featureValue(features, "vwap_distance_bps")
+	emaDistance, _ := featureValue(features, "distance_to_ema_1h")
+
+	if predictedDirection == "up" {
+		if trendSlope < -0.015 || vwapDistanceBps < -18 || emaDistance < -0.12 {
+			return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Makro trend asagi; uzun taraf engellendi."}
+		}
+	} else {
+		if trendSlope > 0.015 || vwapDistanceBps > 18 || emaDistance > 0.12 {
+			return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Makro trend yukari; kisa taraf engellendi."}
+		}
+	}
+
+	if directionalProbability < minDirectionalProbability {
+		if len(accuracy.RecoverySteps) > 0 {
+			return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Smart DCA bekle; recovery step istatistikleri bu sinyal icin henüz yeterince guclu degil."}
+		}
+		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Smart DCA bekle; yon olasiligi yeterince guclu degil."}
+	}
+
 	action := domain.TradeActionNoTrade
 	switch consensus.Direction {
 	case "up":
@@ -665,7 +745,7 @@ func (s *Service) tradeDecision(asset domain.Asset, depth domain.DepthSnapshot, 
 	return tradeDecision{
 		Allowed: true,
 		Action:  action,
-		Reason:  "Uc model ayni yone bakti ve islem onaylandi.",
+		Reason:  "Uc model, risk ve makro trend ayni yonde hizalandi; islem onaylandi.",
 	}
 }
 
@@ -857,7 +937,40 @@ func buildDepth(asset domain.Asset, now time.Time) domain.DepthSnapshot {
 	}
 }
 
-func buildFeatures(asset domain.Asset, depth domain.DepthSnapshot) []domain.FeatureAttribution {
+func buildFeatures(asset domain.Asset, depth domain.DepthSnapshot, candles []domain.Candle) []domain.FeatureAttribution {
+	closed := closedCandles(candles)
+	closes := make([]float64, 0, len(closed))
+	volumes := make([]float64, 0, len(closed))
+	for _, candle := range closed {
+		closes = append(closes, candle.Close)
+		volumes = append(volumes, candle.Volume)
+	}
+	lastClose := asset.LastPrice
+	if len(closes) > 0 {
+		lastClose = closes[len(closes)-1]
+	}
+
+	trend15 := 0.0
+	if len(closes) >= 2 {
+		window := minInt(15, len(closes))
+		trend15 = round(candleTrendSlope(closes[len(closes)-window:]), 6)
+	}
+
+	ema1h := lastClose
+	if len(closes) > 0 {
+		ema1h = calculateEMA(closes, minInt(60, len(closes)))
+	}
+	distanceToEma1h := 0.0
+	if ema1h > 0 {
+		distanceToEma1h = round(((lastClose-ema1h)/ema1h)*100, 6)
+	}
+
+	vwap := calculateVWAP(closed)
+	vwapDistanceBps := 0.0
+	if vwap > 0 {
+		vwapDistanceBps = round((lastClose-vwap)/vwap*10000, 4)
+	}
+
 	features := []domain.FeatureAttribution{
 		{
 			Name:         "depth_imbalance",
@@ -882,6 +995,24 @@ func buildFeatures(asset domain.Asset, depth domain.DepthSnapshot) []domain.Feat
 			Value:        depth.SpreadBps,
 			Contribution: round(-depth.SpreadBps/24, 2),
 			Summary:      "Tighter spread improves short-horizon follow-through reliability.",
+		},
+		{
+			Name:         "trend_15m_slope",
+			Value:        trend15,
+			Contribution: round(trend15*0.14, 2),
+			Summary:      "Higher-timeframe trend slope used to suppress microstructure noise in strong directional regimes.",
+		},
+		{
+			Name:         "distance_to_ema_1h",
+			Value:        distanceToEma1h,
+			Contribution: round(distanceToEma1h*0.16, 2),
+			Summary:      "Distance to a higher-timeframe EMA proxy; large deviations reduce late-entry quality.",
+		},
+		{
+			Name:         "vwap_distance_bps",
+			Value:        vwapDistanceBps,
+			Contribution: round((vwapDistanceBps/100.0)*0.22, 2),
+			Summary:      "Distance from VWAP in basis points for filtering weak pullbacks in persistent trends.",
 		},
 	}
 
@@ -941,11 +1072,17 @@ func buildFeatures(asset domain.Asset, depth domain.DepthSnapshot) []domain.Feat
 		queueImbalance = (bidTop - askTop) / topDenominator
 	}
 
-	shortReturn := round(asset.MicroPriceBias*(asset.Spread/asset.LastPrice)*100, 6)
+	shortReturn := 0.0
+	if len(closes) >= 2 && closes[len(closes)-2] > 0 {
+		shortReturn = round(((lastClose-closes[len(closes)-2])/closes[len(closes)-2])*100, 6)
+	}
+	if shortReturn == 0 {
+		shortReturn = round(asset.MicroPriceBias*(asset.Spread/asset.LastPrice)*100, 6)
+	}
 	realizedVol := round(clamp(asset.VolatilityScore*0.74+math.Abs(asset.ChangePercent24H)/12, 0.04, 1), 4)
 	volumePulse := round(clamp((asset.Volume/math.Max(1, asset.LastPrice*12000))-0.8, -1, 1), 4)
 	depthPressureTrend := round(clamp((asset.DepthImbalance-0.5)*1.2+(asset.OrderFlowImbalance-0.5)*0.8, -1, 1), 4)
-	
+
 	bid5 := 0.0
 	if len(depth.Bids) > 5 {
 		bid5 = depth.Bids[5].Size
@@ -963,7 +1100,7 @@ func buildFeatures(asset domain.Asset, depth domain.DepthSnapshot) []domain.Feat
 		ask0 = depth.Asks[0].Size
 	}
 	bookSlope := round((bid5-bid0-(ask5-ask0))/math.Max(1, asset.Volume/10000), 4)
-	
+
 	bookPressure := round(clamp(queueImbalance*0.65+asset.MicroPriceBias*0.35, -1, 1), 4)
 
 	features = append(features,
@@ -1015,6 +1152,68 @@ func buildFeatures(asset domain.Asset, depth domain.DepthSnapshot) []domain.Feat
 		return math.Abs(features[i].Contribution) > math.Abs(features[j].Contribution)
 	})
 	return features
+}
+
+func closedCandles(candles []domain.Candle) []domain.Candle {
+	out := make([]domain.Candle, 0, len(candles))
+	for _, candle := range candles {
+		if candle.IsLive {
+			continue
+		}
+		out = append(out, candle)
+	}
+	return out
+}
+
+func calculateEMA(values []float64, period int) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	if period <= 1 || period >= len(values) {
+		total := 0.0
+		for _, value := range values {
+			total += value
+		}
+		return total / float64(len(values))
+	}
+	alpha := 2.0 / float64(period+1)
+	ema := values[0]
+	for _, value := range values[1:] {
+		ema = value*alpha + ema*(1-alpha)
+	}
+	return ema
+}
+
+func calculateVWAP(candles []domain.Candle) float64 {
+	totalVolume := 0.0
+	totalValue := 0.0
+	for _, candle := range candles {
+		if candle.Volume <= 0 {
+			continue
+		}
+		totalVolume += candle.Volume
+		totalValue += candle.Close * candle.Volume
+	}
+	if totalVolume == 0 {
+		return 0
+	}
+	return totalValue / totalVolume
+}
+
+func candleTrendSlope(closes []float64) float64 {
+	if len(closes) < 2 || closes[0] == 0 {
+		return 0
+	}
+	return ((closes[len(closes)-1] - closes[0]) / closes[0]) / float64(len(closes)-1) * 100
+}
+
+func featureValue(features []domain.FeatureAttribution, name string) (float64, bool) {
+	for _, feature := range features {
+		if feature.Name == name {
+			return feature.Value, true
+		}
+	}
+	return 0, false
 }
 
 func fallbackPrediction(asset domain.Asset, features []domain.FeatureAttribution) inference.Response {

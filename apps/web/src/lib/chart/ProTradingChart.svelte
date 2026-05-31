@@ -15,6 +15,7 @@
 	import { CHART_TIMEFRAMES, PRO_CHART_SERIES, PRO_CHART_THEME, type ChartTimeframe } from './pro-chart-theme';
 
 	export let detail: AssetDetail;
+	export let focusTimestamp: string | null = null;
 
 	let chartHost: HTMLDivElement;
 	let chart: ReturnType<typeof createChart> | undefined;
@@ -29,6 +30,7 @@
 	let mounted = false;
 	let barSpacing = 9;
 	let lastSyncedTimeframe: ChartTimeframe | undefined;
+	let focusHandledAt: string | null = null;
 
 	const minBarSpacing = 4;
 	const maxBarSpacing = 36;
@@ -121,6 +123,21 @@
 
 	function currentPoints() {
 		return normalizeCandles(candlesForTimeframe(activeTimeframe));
+	}
+
+	function focusChartOnTimestamp(timestamp: string | null) {
+		if (!chart || !timestamp) return;
+		const points = currentPoints();
+		if (!points.length) return;
+		const targetTime = Math.floor(new Date(timestamp).getTime() / 1000);
+		if (!Number.isFinite(targetTime) || targetTime <= 0) return;
+		const targetIndex = points.findIndex((point) => point.time === targetTime);
+		if (targetIndex < 0) return;
+		const from = Math.max(0, targetIndex - 18);
+		const to = Math.min(points.length - 1, targetIndex + 18);
+		chart.timeScale().setVisibleLogicalRange({ from, to });
+		selectedCandle = points[targetIndex];
+		focusHandledAt = timestamp;
 	}
 
 	function buildChart() {
@@ -314,6 +331,7 @@
 			chart.timeScale().fitContent();
 			lastSyncedTimeframe = activeTimeframe;
 		}
+		focusChartOnTimestamp(focusTimestamp);
 	}
 
 	onMount(() => {
@@ -329,6 +347,9 @@
 
 	$: if (mounted && detail && activeTimeframe) {
 		syncChart();
+	}
+	$: if (mounted && focusTimestamp && focusTimestamp !== focusHandledAt) {
+		focusChartOnTimestamp(focusTimestamp);
 	}
 
 	$: activePoints = currentPoints();

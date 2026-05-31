@@ -12,13 +12,13 @@ def round_to(value: float, digits: int = 4) -> float:
 
 
 def signal_label(score: float) -> str:
-    if score > 0.22:
+    if score > 0.34:
         return "strong_bullish"
-    if score > 0.08:
+    if score > 0.18:
         return "bullish"
-    if score < -0.22:
+    if score < -0.34:
         return "strong_bearish"
-    if score < -0.08:
+    if score < -0.18:
         return "bearish"
     return "neutral"
 
@@ -155,17 +155,23 @@ def freqai_branch(features: dict[str, float]) -> tuple[float, float, list[dict]]
     short_return = features.get("short_return_1m", features.get("short_return_1s", 0.0))
     realized_vol = features.get("realized_vol_8s", 0.3)
     volume_pulse = features.get("volume_pulse", 0.0)
+    trend_15m_slope = features.get("trend_15m_slope", 0.0)
+    distance_to_ema_1h = features.get("distance_to_ema_1h", 0.0)
+    vwap_distance_bps = features.get("vwap_distance_bps", 0.0)
 
     score = clamp(
-        (flow - 0.5) * 1.24
-        + (depth - 0.5) * 0.62
-        + micro * 0.34
-        + book_pressure * 0.58
-        + pressure_trend * 0.51
-        + short_return * 16
-        + volume_pulse * 0.2
-        - realized_vol * 0.42
-        - spread / 28,
+        (flow - 0.5) * 1.08
+        + (depth - 0.5) * 0.52
+        + micro * 0.28
+        + book_pressure * 0.46
+        + pressure_trend * 0.42
+        + short_return * 13
+        + volume_pulse * 0.18
+        + trend_15m_slope * 0.26
+        + distance_to_ema_1h * 0.28
+        + (vwap_distance_bps / 100.0) * 0.34
+        - realized_vol * 0.44
+        - spread / 30,
         -1.2,
         1.2,
     )
@@ -174,14 +180,20 @@ def freqai_branch(features: dict[str, float]) -> tuple[float, float, list[dict]]
         {
             "name": "freqai_order_flow",
             "value": round_to(flow, 4),
-            "contribution": round_to((flow - 0.5) * 1.7, 2),
+            "contribution": round_to((flow - 0.5) * 1.5, 2),
             "summary": "FreqAI branch uses the latest order-flow imbalance as the primary momentum driver.",
         },
         {
-            "name": "freqai_book_pressure",
-            "value": round_to(book_pressure, 4),
-            "contribution": round_to(book_pressure * 1.3, 2),
-            "summary": "Composite pressure from microprice drift and queue imbalance.",
+            "name": "freqai_macro_trend_15m",
+            "value": round_to(trend_15m_slope, 4),
+            "contribution": round_to(trend_15m_slope * 0.14, 2),
+            "summary": "Higher-timeframe trend slope used as a macro filter against short-lived microstructure noise.",
+        },
+        {
+            "name": "freqai_vwap_distance_bps",
+            "value": round_to(vwap_distance_bps, 4),
+            "contribution": round_to((vwap_distance_bps / 100.0) * 0.22, 2),
+            "summary": "Distance from VWAP in basis points; persistent discount below VWAP lowers buy confidence.",
         },
     ]
     return score, probability, top_features
@@ -193,12 +205,14 @@ def tlob_branch(features: dict[str, float]) -> tuple[float, float, list[dict]]:
     realized_vol = features.get("realized_vol_8s", 0.3)
     micro = features.get("microprice_bias", 0.0)
     volume_pulse = features.get("volume_pulse", 0.0)
+    trend_15m_slope = features.get("trend_15m_slope", 0.0)
     score = clamp(
-        pressure_trend * 0.7
-        + book_pressure * 0.52
-        + micro * 0.44
-        + volume_pulse * 0.18
-        - realized_vol * 0.32,
+        pressure_trend * 0.66
+        + book_pressure * 0.48
+        + micro * 0.38
+        + volume_pulse * 0.16
+        + trend_15m_slope * 0.18
+        - realized_vol * 0.34,
         -1.2,
         1.2,
     )
@@ -207,14 +221,14 @@ def tlob_branch(features: dict[str, float]) -> tuple[float, float, list[dict]]:
         {
             "name": "tlob_pressure_trend",
             "value": round_to(pressure_trend, 4),
-            "contribution": round_to(pressure_trend * 1.35, 2),
+            "contribution": round_to(pressure_trend * 1.22, 2),
             "summary": "TLOB branch tracks temporal persistence of order-book pressure.",
         },
         {
-            "name": "tlob_microprice_regime",
-            "value": round_to(micro, 4),
-            "contribution": round_to(micro * 1.1, 2),
-            "summary": "Temporal branch score from sustained microprice drift and volume pulse.",
+            "name": "tlob_macro_trend_15m",
+            "value": round_to(trend_15m_slope, 4),
+            "contribution": round_to(trend_15m_slope * 0.11, 2),
+            "summary": "Higher-timeframe trend confirmation used to avoid fading strong directional regimes.",
         },
     ]
     return score, probability, top_features
@@ -263,7 +277,18 @@ def predict(features: dict[str, float], model: str) -> dict:
         0.06,
         0.9,
     )
-    neutral = clamp(1 - up - down + (0.16 - abs(ensemble_score) * 0.08), 0.04, 0.42)
+    macro_bias = clamp(
+        trend_15m_slope * 0.42 + distance_to_ema_1h * 0.03 + (vwap_distance_bps / 100.0) * 0.08,
+        -0.3,
+        0.3,
+    )
+    if ensemble_score >= 0:
+        up = clamp(up + max(macro_bias, 0) * 0.14 - max(-macro_bias, 0) * 0.18, 0.06, 0.9)
+        down = clamp(down + max(-macro_bias, 0) * 0.15 - max(macro_bias, 0) * 0.08, 0.06, 0.9)
+    else:
+        up = clamp(up + max(macro_bias, 0) * 0.08 - max(-macro_bias, 0) * 0.15, 0.06, 0.9)
+        down = clamp(down + max(-macro_bias, 0) * 0.14 - max(macro_bias, 0) * 0.18, 0.06, 0.9)
+    neutral = clamp(1 - up - down + (0.16 - abs(ensemble_score) * 0.08) - abs(macro_bias) * 0.03, 0.04, 0.42)
     total = up + down + neutral
     up /= total
     down /= total
@@ -273,6 +298,7 @@ def predict(features: dict[str, float], model: str) -> dict:
     top_features = sorted(
         deeplob_features
         + freqai_features
+        + tlob_features
         + [
             {
                 "name": "order_flow_imbalance",
@@ -291,6 +317,24 @@ def predict(features: dict[str, float], model: str) -> dict:
                 "value": round_to(micro, 4),
                 "contribution": round_to(micro * 1.4, 2),
                 "summary": "Microprice drift relative to the midpoint and top-of-book pressure.",
+            },
+            {
+                "name": "distance_to_ema_1h",
+                "value": round_to(features.get("distance_to_ema_1h", 0.0), 4),
+                "contribution": round_to(features.get("distance_to_ema_1h", 0.0) * 0.16, 2),
+                "summary": "Macro mean-reversion buffer against entries far from the higher-timeframe EMA.",
+            },
+            {
+                "name": "vwap_distance_bps",
+                "value": round_to(features.get("vwap_distance_bps", 0.0), 4),
+                "contribution": round_to((features.get("vwap_distance_bps", 0.0) / 100.0) * 0.22, 2),
+                "summary": "Distance from VWAP in basis points, useful for filtering weak pullbacks in downtrends.",
+            },
+            {
+                "name": "trend_15m_slope",
+                "value": round_to(features.get("trend_15m_slope", 0.0), 4),
+                "contribution": round_to(features.get("trend_15m_slope", 0.0) * 0.14, 2),
+                "summary": "Macro trend slope over the last 15 minutes; strong directional runs should dominate micro noise.",
             },
         ],
         key=lambda item: abs(item["contribution"]),
@@ -315,7 +359,7 @@ def predict(features: dict[str, float], model: str) -> dict:
         "signalQuality": signal_quality,
         "historicalHitRate": round_to(clamp(0.5 + abs(ensemble_score) / 2 - volatility_proxy / 8, 0.45, 0.81), 4),
         "modelVersion": model or "deeplob-freqai-tlob-ensemble-1m-v3",
-        "explanation": explanation,
+        "explanation": explanation + " Macro trend, EMA distance, and VWAP offset are used as a stricter filter against fading strong directional regimes.",
         "modelComponents": [
             {
                 "name": "DeepLOB depth branch",
@@ -394,6 +438,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer(("0.0.0.0", 8090), Handler)
-    print("pulsealpha inference service listening on :8090")
+    server = ThreadingHTTPServer(("0.0.0.0", 8091), Handler)
+    print("pulsealpha inference service listening on :8091")
     server.serve_forever()
