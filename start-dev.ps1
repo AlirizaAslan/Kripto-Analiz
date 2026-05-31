@@ -12,6 +12,13 @@ Write-Host "Frontend: $webUrl"
 
 $backendCommand = @"
 Set-Location '$apiDir'
+if (Test-Path '$root\.env') {
+    Get-Content '$root\.env' | ForEach-Object {
+        if (`$_ -match '^\s*([^#=]+)\s*=\s*(.*)') {
+            [Environment]::SetEnvironmentVariable(`$matches[1].Trim(), `$matches[2].Trim(), 'Process')
+        }
+    }
+}
 `$env:GOCACHE = Join-Path (Get-Location) '.gocache'
 `$env:GOTMPDIR = Join-Path (Get-Location) '.gotmp'
 `$env:GOTELEMETRY = 'off'
