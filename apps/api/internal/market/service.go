@@ -442,7 +442,7 @@ func (s *Service) buildPrediction(asset domain.Asset, depth domain.DepthSnapshot
 		tradePlan = tradeDecision{
 			Allowed: false,
 			Action:  domain.TradeActionNoTrade,
-			Reason:  "Uc model ortak karar vermedigi icin kayda alinmadi.",
+			Reason:  "Bes model ortak karar vermedigi icin kayda alinmadi.",
 		}
 	}
 
@@ -670,7 +670,7 @@ func (s *Service) thresholdsForAsset(asset domain.Asset) symbolTradeThresholds {
 
 func (s *Service) tradeDecision(asset domain.Asset, depth domain.DepthSnapshot, consensus consensusSummary, confidenceScore float64, regime domain.RegimeLabel, predictedDirection string, upProbability float64, downProbability float64, risk domain.RiskLabel, features []domain.FeatureAttribution, components []domain.ModelComponent) tradeDecision {
 	if !consensus.Active || consensus.Direction == "" {
-		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Uc model ayni yone bakmiyor."}
+		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Bes model ayni yone bakmiyor."}
 	}
 	if predictedDirection == "neutral" || consensus.Direction == "neutral" {
 		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Model sonucu yatay; sistem isleme girmiyor."}
@@ -685,54 +685,7 @@ func (s *Service) tradeDecision(asset domain.Asset, depth domain.DepthSnapshot, 
 		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Modellerden biri yatay; sistem isleme girmiyor."}
 	}
 	if !allPrimaryModelsAligned(components, consensus.Direction) {
-		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Uc model ayni net yone bakmiyor."}
-	}
-
-	accuracy := s.currentAccuracy(asset.Symbol)
-	if accuracy.SampleSize > 0 && accuracy.SampleSize < s.filter.MinConsensusSamples {
-		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Yeterli gecmis onay yok; erken giris engellendi."}
-	}
-	if risk == domain.RiskHigh || regime == domain.RegimeHighVolatility {
-		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Risk yuksek; ilk giris tamamen engellendi."}
-	}
-	thresholds := s.thresholdsForAsset(asset)
-	if depth.SpreadBps > thresholds.MaxSpreadBps {
-		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Spread cok genis; isleme girilmiyor."}
-	}
-	if confidenceScore < thresholds.MinConfidence {
-		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Confidence dusuk; sinyal bekletildi."}
-	}
-
-	directionalProbability := downProbability
-	if predictedDirection == "up" {
-		directionalProbability = upProbability
-	}
-
-	minDirectionalProbability := smartDCAProbabilityFloor(accuracy, regime)
-	if asset.SignalQuality != domain.SignalQualityFullDepth {
-		minDirectionalProbability += 0.04
-	}
-	minDirectionalProbability = clamp(minDirectionalProbability, 0.58, 0.74)
-
-	trendSlope, _ := featureValue(features, "trend_15m_slope")
-	vwapDistanceBps, _ := featureValue(features, "vwap_distance_bps")
-	emaDistance, _ := featureValue(features, "distance_to_ema_1h")
-
-	if predictedDirection == "up" {
-		if trendSlope < -0.015 || vwapDistanceBps < -18 || emaDistance < -0.12 {
-			return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Makro trend asagi; uzun taraf engellendi."}
-		}
-	} else {
-		if trendSlope > 0.015 || vwapDistanceBps > 18 || emaDistance > 0.12 {
-			return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Makro trend yukari; kisa taraf engellendi."}
-		}
-	}
-
-	if directionalProbability < minDirectionalProbability {
-		if len(accuracy.RecoverySteps) > 0 {
-			return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Smart DCA bekle; recovery step istatistikleri bu sinyal icin henüz yeterince guclu degil."}
-		}
-		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Smart DCA bekle; yon olasiligi yeterince guclu degil."}
+		return tradeDecision{Action: domain.TradeActionNoTrade, Reason: "Bes model ayni net yone bakmiyor."}
 	}
 
 	action := domain.TradeActionNoTrade
@@ -745,10 +698,9 @@ func (s *Service) tradeDecision(asset domain.Asset, depth domain.DepthSnapshot, 
 	return tradeDecision{
 		Allowed: true,
 		Action:  action,
-		Reason:  "Uc model, risk ve makro trend ayni yonde hizalandi; islem onaylandi.",
+		Reason:  "Bes model ayni yone bakti; ortak karar sinyali onaylandi.",
 	}
 }
-
 func (s *Service) inferenceModel() string {
 	if s.inference == nil {
 		return "depth-fallback-v1"

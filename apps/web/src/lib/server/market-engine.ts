@@ -151,8 +151,8 @@ function isTrackablePrediction(prediction: Prediction) {
 	if (!prediction.consensusActive) return false;
 	if (prediction.consensusDirection !== 'up' && prediction.consensusDirection !== 'down') return false;
 	if (prediction.predictedDirection !== prediction.consensusDirection) return false;
-	if (prediction.modelComponents.slice(0, 3).length < 3) return false;
-	return prediction.modelComponents.slice(0, 3).every((component) => component.predictedDirection === prediction.consensusDirection);
+	if (prediction.modelComponents.slice(0, 5).length < 5) return false;
+	return prediction.modelComponents.slice(0, 5).every((component) => component.predictedDirection === prediction.consensusDirection);
 }
 
 function componentDirection(score: number, probability: number): Prediction['predictedDirection'] {
@@ -166,13 +166,6 @@ function componentDirectionalConfidence(component: ModelComponent, direction: Pr
 	if (direction === 'down') return clamp(1 - component.probability, 0, 1);
 	return clamp(1 - Math.abs(component.probability - 0.5) * 2, 0, 1);
 }
-
-type TradeThresholds = {
-	minConfidence: number;
-	maxSpreadBps: number;
-	minDepthBias: number;
-	minMicroPriceBias: number;
-};
 
 const SECOND_MS = 1000;
 const MINUTE_MS = 60 * SECOND_MS;
@@ -190,26 +183,6 @@ type CandleProjection = {
 
 function baseSymbol(symbol: string) {
 	return symbol.split('-')[0]?.toUpperCase() ?? symbol.toUpperCase();
-}
-
-function tradeThresholds(symbol: string): TradeThresholds {
-	const base: TradeThresholds = {
-		minConfidence: 0.58,
-		maxSpreadBps: 12,
-		minDepthBias: 0.03,
-		minMicroPriceBias: 0.008
-	};
-
-	switch (baseSymbol(symbol)) {
-		case 'BTCUSDT':
-			return { minConfidence: 0.58, maxSpreadBps: 5.5, minDepthBias: 0.035, minMicroPriceBias: 0.008 };
-		case 'ETHUSDT':
-			return { minConfidence: 0.6, maxSpreadBps: 7, minDepthBias: 0.04, minMicroPriceBias: 0.01 };
-		case 'SOLUSDT':
-			return { minConfidence: 0.63, maxSpreadBps: 11, minDepthBias: 0.06, minMicroPriceBias: 0.014 };
-		default:
-			return base;
-	}
 }
 
 function projectCandle(asset: Asset, minute: number): CandleProjection {
@@ -527,20 +500,20 @@ function buildPrediction(asset: Asset, depth: DepthSnapshot, now: number): Predi
 		return currentCount > bestCount ? direction : best;
 	}, '');
 	const consensusCount = consensusDirection ? (directionCounts.get(consensusDirection) ?? 0) : 0;
-	const consensusActive = consensusCount === 3;
+	const consensusActive = consensusCount === 5;
 	const averageConsensusConfidence =
 		(directionProbabilitySums.get(consensusDirection as Prediction['predictedDirection']) ?? 0) / Math.max(consensusCount, 1);
 	const consensusStrength =
-		consensusActive && consensusCount === 3 && averageConsensusConfidence >= 0.62
+		consensusActive && consensusCount === 5 && averageConsensusConfidence >= 0.62
 			? 'strong'
 			: consensusActive
 				? 'aligned'
 				: 'diverged';
 	const consensusSummary = consensusActive
-		? 'All three models are aligned on the next-candle direction, so the consensus layer adds a bounded confidence boost.'
-		: 'All three models are not aligned on the next-candle direction, so the system stays guarded instead of applying a consensus boost.';
-	const confidenceBoost = consensusStrength === 'strong' ? 0.06 : consensusStrength === 'aligned' ? 0.03 : 0;
-	const hitRateBoost = consensusStrength === 'strong' ? 0.05 : consensusStrength === 'aligned' ? 0.02 : 0;
+		? 'All five models are aligned on the next-candle direction, so the consensus layer adds a bounded confidence boost.'
+		: 'All five models are not aligned on the next-candle direction, so the system stays guarded instead of applying a consensus boost.';
+	const confidenceBoost = consensusStrength === 'strong' ? 0.08 : consensusStrength === 'aligned' ? 0.05 : 0;
+	const hitRateBoost = consensusStrength === 'strong' ? 0.06 : consensusStrength === 'aligned' ? 0.04 : 0;
 	const confidenceScore = round(
 		clamp(
 			0.46 +
@@ -554,9 +527,6 @@ function buildPrediction(asset: Asset, depth: DepthSnapshot, now: number): Predi
 	);
 	const regimeLabel =
 		depth.spreadBps > 10 ? 'low_liquidity' : asset.volatilityScore > 0.74 ? 'high_volatility' : Math.abs(asset.depthImbalance - 0.5) < 0.08 ? 'range' : 'trend';
-	const thresholds = tradeThresholds(asset.symbol);
-	const depthBias = Math.abs(asset.depthImbalance - 0.5);
-	const microBias = Math.abs(asset.microPriceBias);
 	const probabilityDirection = directionFromProbabilities(up / total, down / total, neutralBase / total);
 	const finalPredictedDirection = finalDirectionFromConsensus(
 		probabilityDirection,
@@ -567,36 +537,25 @@ function buildPrediction(asset: Asset, depth: DepthSnapshot, now: number): Predi
 	const allPrimaryModelsAligned =
 		consensusDirection !== '' &&
 		consensusDirection !== 'neutral' &&
-		modelComponents.slice(0, 3).every((component) => component.predictedDirection === consensusDirection);
+		modelComponents.slice(0, 5).length === 5 &&
+		modelComponents.slice(0, 5).every((component) => component.predictedDirection === consensusDirection);
 	let tradeAllowed = false;
 	let tradeAction: Prediction['tradeAction'] = 'no_trade';
-	let tradeFilterReason = 'Uc model ayni yone bakmiyor.';
+	let tradeFilterReason = 'Bes model ayni yone bakmiyor.';
 	if (finalPredictedDirection === 'neutral' || consensusDirection === 'neutral') {
 		tradeFilterReason = 'Model sonucu yatay; sistem isleme girmiyor.';
 	} else if (!consensusActive) {
-		tradeFilterReason = 'Uc model ayni yone bakmiyor.';
+		tradeFilterReason = 'Bes model ayni yone bakmiyor.';
 	} else if (finalPredictedDirection !== consensusDirection) {
 		tradeFilterReason = 'Nihai tahmin ve model consensus ayni yonde degil.';
 	} else if (hasNeutralModel) {
 		tradeFilterReason = 'Modellerden biri yatay; sistem isleme girmiyor.';
 	} else if (!allPrimaryModelsAligned) {
-		tradeFilterReason = 'Uc model ayni net yone bakmiyor.';
-	} else if (consensusStrength !== 'strong') {
-		tradeFilterReason = 'Consensus gucu yuksek isabet filtresinin altinda.';
-	} else if (asset.signalQuality !== 'full_depth' || depth.signalQuality !== 'full_depth') {
-		tradeFilterReason = 'Derinlik kalitesi zayif; sistem bekliyor.';
-	} else if (confidenceScore < thresholds.minConfidence) {
-		tradeFilterReason = 'Guven skoru sembol esiginin altinda.';
-	} else if (depth.spreadBps > thresholds.maxSpreadBps) {
-		tradeFilterReason = 'Spread genis; islem kalitesi dusuk.';
-	} else if (depthBias < thresholds.minDepthBias && microBias < thresholds.minMicroPriceBias) {
-		tradeFilterReason = 'Order book yonu net degil; sistem bekliyor.';
-	} else if (regimeLabel === 'low_liquidity' || regimeLabel === 'range') {
-		tradeFilterReason = 'Piyasa rejimi islemi desteklemiyor.';
+		tradeFilterReason = 'Bes model ayni net yone bakmiyor.';
 	} else {
 		tradeAllowed = true;
 		tradeAction = finalPredictedDirection === 'up' ? 'buy' : finalPredictedDirection === 'down' ? 'sell' : 'no_trade';
-		tradeFilterReason = 'Uc model ayni yone bakti ve kalite filtreleri gecti.';
+		tradeFilterReason = 'Bes model ayni yone bakti; ortak karar sinyali onaylandi.';
 	}
 	if (
 		!consensusActive ||
@@ -607,7 +566,7 @@ function buildPrediction(asset: Asset, depth: DepthSnapshot, now: number): Predi
 	) {
 		tradeAllowed = false;
 		tradeAction = 'no_trade';
-		tradeFilterReason = 'Uc model ortak karar vermedigi icin kayda alinmadi.';
+		tradeFilterReason = 'Bes model ortak karar vermedigi icin kayda alinmadi.';
 	}
 	return {
 		candleInterval: '1m',
@@ -738,7 +697,7 @@ function buildHistory(asset: Asset, prediction: Prediction, now: number): Predic
 }
 
 function buildAccuracySummary(history: PredictionHistoryItem[], recentWindow = 5): AccuracySummary {
-	history = history.filter((item) => !item.isPending);
+	history = history.filter((item) => !item.isPending && item.consensusActive);
 	if (!history.length) {
 		return {
 			winRate: 0,
@@ -759,7 +718,10 @@ function buildAccuracySummary(history: PredictionHistoryItem[], recentWindow = 5
 			bearishAccuracy: 0,
 			sampleSize: 0,
 			lifetimeSampleSize: 0,
-			consensusSampleSize: 0
+			consensusSampleSize: 0,
+			recoverySteps: [],
+			recoveryWrongCandles: [],
+			maxRecoveryStep: 0
 		};
 	}
 	const sampleSize = history.length;
@@ -780,17 +742,18 @@ function buildAccuracySummary(history: PredictionHistoryItem[], recentWindow = 5
 		if (history[index].wasCorrect === lastWasCorrect) streak += 1;
 		else break;
 	}
+	const recovery = buildRecoverySummary(history);
 	return {
 		winRate: safeRate(wins, sampleSize, 2),
 		lifetimeWinRate: safeRate(wins, sampleSize, 2),
 		recentWindowWinRate: safeRate(recentWins, recent.length, 2),
 		recent6WinRate: safeRate(recent6Wins, recent6.length, 2),
 		recent7WinRate: safeRate(recent7Wins, recent7.length, 2),
-		consensusWinRate: 0,
+		consensusWinRate: safeRate(wins, sampleSize, 2),
 		tradeWinRate: safeRate(wins, sampleSize, 2),
 		tradeSampleSize: sampleSize,
-		consensusTradeWinRate: 0,
-		consensusTradeSampleSize: 0,
+		consensusTradeWinRate: safeRate(wins, sampleSize, 2),
+		consensusTradeSampleSize: sampleSize,
 		horizonWinRates: {
 			'1m': safeRate(wins, sampleSize, 2),
 			'5m': round(clamp(safeRate(wins, sampleSize, 4) - 0.02, 0, 1), 2),
@@ -809,8 +772,61 @@ function buildAccuracySummary(history: PredictionHistoryItem[], recentWindow = 5
 		bearishAccuracy,
 		sampleSize,
 		lifetimeSampleSize: sampleSize,
-		consensusSampleSize: 0
+		consensusSampleSize: sampleSize,
+		recoverySteps: recovery.recoverySteps,
+		recoveryWrongCandles: recovery.recoveryWrongCandles,
+		maxRecoveryStep: recovery.maxRecoveryStep
 	};
+}
+
+function buildRecoverySummary(history: PredictionHistoryItem[]) {
+	const stepAttempts = new Map<number, number>();
+	const stepWins = new Map<number, number>();
+	const recoveryWrongCandles: AccuracySummary['recoveryWrongCandles'] = [];
+	let currentStep = 1;
+
+	for (const item of history) {
+		stepAttempts.set(currentStep, (stepAttempts.get(currentStep) ?? 0) + 1);
+		if (currentStep >= 7 && !item.wasCorrect) {
+			recoveryWrongCandles.push({
+				stepNumber: currentStep,
+				targetCandleStart: item.targetCandleStart,
+				predictedDirection: item.predictedDirection,
+				realizedDirection: item.realizedDirection,
+				confidenceScore: item.confidenceScore,
+				tradeAction: item.tradeAction,
+				tradeAllowed: item.tradeAllowed,
+				wasCorrect: item.wasCorrect
+			});
+		}
+		if (item.wasCorrect) {
+			stepWins.set(currentStep, (stepWins.get(currentStep) ?? 0) + 1);
+			currentStep = 1;
+		} else {
+			currentStep += 1;
+		}
+	}
+
+	const maxRecoveryStep = Math.max(0, ...stepAttempts.keys());
+	const totalSequences = stepAttempts.get(1) ?? 0;
+	let cumulativeWins = 0;
+	const recoverySteps: AccuracySummary['recoverySteps'] = [];
+	for (let step = 1; step <= maxRecoveryStep; step += 1) {
+		const attempts = stepAttempts.get(step) ?? 0;
+		if (!attempts) continue;
+		const stepWinCount = stepWins.get(step) ?? 0;
+		cumulativeWins += stepWinCount;
+		recoverySteps.push({
+			stepNumber: step,
+			attempts,
+			wins: stepWinCount,
+			stepWinRate: safeRate(stepWinCount, attempts, 4),
+			cumulativeWins,
+			cumulativeRate: safeRate(cumulativeWins, totalSequences, 4)
+		});
+	}
+
+	return { recoverySteps, recoveryWrongCandles, maxRecoveryStep };
 }
 
 function buildSummary(asset: Asset, depth: DepthSnapshot, now: number): AssetSummary {

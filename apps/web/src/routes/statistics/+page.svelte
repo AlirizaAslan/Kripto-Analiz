@@ -122,7 +122,8 @@
 	}
 
 	function filteredHistory(history: PredictionHistoryItem[], mode: 'all' | 'traded') {
-		const items = mode === 'all' ? history : history.filter((item) => item.tradeAllowed);
+		const consensusItems = history.filter((item) => item.consensusActive);
+		const items = mode === 'all' ? consensusItems : consensusItems.filter((item) => item.tradeAllowed || item.consensusActive);
 		return [...items].reverse();
 	}
 
@@ -207,8 +208,8 @@
 							</p>
 						</div>
 						<div class="toggle-group">
-							<button class:active={mode === 'all'} class="toggle-btn" on:click={() => setViewMode(item.symbol, 'all')}>Tum tahminler</button>
-							<button class:active={mode === 'traded'} class="toggle-btn" on:click={() => setViewMode(item.symbol, 'traded')}>Sadece isleme girenler</button>
+							<button class:active={mode === 'all'} class="toggle-btn" on:click={() => setViewMode(item.symbol, 'all')}>5 model ortak karar</button>
+							<button class:active={mode === 'traded'} class="toggle-btn" on:click={() => setViewMode(item.symbol, 'traded')}>Ortak karar sinyalleri</button>
 							<a class="detail-link" href={`/statistics/${item.market}/${item.symbol}`}>Detay sayfasi</a>
 						</div>
 					</div>
@@ -362,7 +363,7 @@
 							<p class="eyebrow">Gecmis</p>
 							<h3>Kalici tahmin kayitlari</h3>
 						</div>
-						<p class="section-note">{mode === 'all' ? 'Tum kayitlar' : 'Sadece isleme giren kayitlar'}</p>
+						<p class="section-note">{mode === 'all' ? '5 model ortak karar kayitlari' : 'Ortak karar sinyal kayitlari'}</p>
 					</div>
 
 					<div class="table-container">
@@ -376,7 +377,7 @@
 										<th>Gerceklesen</th>
 										<th>Guven</th>
 										<th>Sonuc</th>
-										<th>Aksiyon</th>
+										<th>Ortak karar</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -403,11 +404,9 @@
 												{/if}
 											</td>
 											<td>
-												{#if historyItem.tradeAllowed}
-													<span class={`action-badge ${historyItem.tradeAction}`}>{historyItem.tradeAction.toUpperCase()}</span>
-												{:else}
-													<span class="text-neutral">Islem yok</span>
-												{/if}
+												<span class={`action-badge ${historyItem.consensusDirection === 'up' ? 'buy' : 'sell'}`}>
+													{predictionActionLabel(historyItem.consensusDirection || historyItem.predictedDirection)}
+												</span>
 											</td>
 										</tr>
 									{/each}

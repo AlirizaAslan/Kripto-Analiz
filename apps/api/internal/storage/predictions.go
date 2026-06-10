@@ -399,7 +399,7 @@ func (s *PredictionStore) pendingRows(symbol string) ([]predictionRow, error) {
 	rows, err := s.db.Query(
 		`SELECT symbol, market, target_candle_start, predicted_direction, confidence_score, consensus_active, consensus_direction, trade_allowed, trade_action, trade_filter_reason, signal_quality, consensus_strength, regime_label, spread_bps, depth_imbalance, micro_price_bias, volatility_score, prediction_hour_utc, prediction_volume, resolved_volume, model_directions
 		FROM prediction_records
-		WHERE symbol = ? AND predicted_direction IN ('up', 'down') AND (realized_direction IS NULL OR EXISTS (
+		WHERE symbol = ? AND predicted_direction IN ('up', 'down') AND consensus_active = 1 AND consensus_direction IN ('up', 'down') AND (realized_direction IS NULL OR EXISTS (
 			SELECT 1 FROM prediction_evaluations pe WHERE pe.symbol = prediction_records.symbol AND pe.target_candle_start = prediction_records.target_candle_start AND pe.realized_direction IS NULL
 		) OR (trade_allowed = 1 AND realized_direction = 'neutral') OR EXISTS (
 			SELECT 1 FROM prediction_evaluations pe WHERE pe.symbol = prediction_records.symbol AND pe.target_candle_start = prediction_records.target_candle_start AND pe.trade_allowed = 1 AND pe.realized_direction = 'neutral'
@@ -421,6 +421,9 @@ func (s *PredictionStore) pendingRows(symbol string) ([]predictionRow, error) {
 		if !isPredictionTargetAligned(row.TargetCandleStart) {
 			continue
 		}
+		if !isFiveModelConsensusRow(row) {
+			continue
+		}
 		out = append(out, row)
 	}
 	return out, rows.Err()
@@ -430,7 +433,7 @@ func (s *PredictionStore) resolvedRows(symbol string) ([]predictionRow, error) {
 	rows, err := s.db.Query(
 		`SELECT symbol, market, target_candle_start, predicted_direction, confidence_score, consensus_active, consensus_direction, trade_allowed, trade_action, trade_filter_reason, signal_quality, consensus_strength, regime_label, spread_bps, depth_imbalance, micro_price_bias, volatility_score, prediction_hour_utc, prediction_volume, resolved_volume, realized_direction, was_correct, model_directions
 		FROM prediction_records
-		WHERE symbol = ? AND predicted_direction IN ('up', 'down') AND realized_direction IS NOT NULL
+		WHERE symbol = ? AND predicted_direction IN ('up', 'down') AND consensus_active = 1 AND consensus_direction IN ('up', 'down') AND realized_direction IS NOT NULL
 		ORDER BY target_candle_start ASC`,
 		symbol,
 	)
@@ -448,6 +451,9 @@ func (s *PredictionStore) resolvedRows(symbol string) ([]predictionRow, error) {
 		if !isPredictionTargetAligned(row.TargetCandleStart) {
 			continue
 		}
+		if !isFiveModelConsensusRow(row) {
+			continue
+		}
 		out = append(out, row)
 	}
 	return out, rows.Err()
@@ -455,10 +461,10 @@ func (s *PredictionStore) resolvedRows(symbol string) ([]predictionRow, error) {
 
 func (s *PredictionStore) resolvedEvaluations(symbol string) ([]evaluationRow, error) {
 	rows, err := s.db.Query(
-		`SELECT pe.target_candle_start, pe.horizon, pe.was_correct, pe.trade_allowed, pe.consensus_active
+		`SELECT pe.target_candle_start, pe.horizon, pe.was_correct, pe.trade_allowed, pe.consensus_active, pr.consensus_direction, pr.model_directions
 		FROM prediction_evaluations pe
 		JOIN prediction_records pr ON pe.symbol = pr.symbol AND pe.target_candle_start = pr.target_candle_start
-		WHERE pe.symbol = ? AND pr.predicted_direction IN ('up', 'down') AND pe.realized_direction IS NOT NULL`,
+		WHERE pe.symbol = ? AND pr.predicted_direction IN ('up', 'down') AND pr.consensus_active = 1 AND pr.consensus_direction IN ('up', 'down') AND pe.realized_direction IS NOT NULL`,
 		symbol,
 	)
 	if err != nil {
@@ -473,7 +479,9 @@ func (s *PredictionStore) resolvedEvaluations(symbol string) ([]evaluationRow, e
 		var wasCorrect int
 		var tradeAllowed int
 		var consensusActive int
-		if err := rows.Scan(&target, &row.Horizon, &wasCorrect, &tradeAllowed, &consensusActive); err != nil {
+		var consensusDirection string
+		var modelDirectionsRaw string
+		if err := rows.Scan(&target, &row.Horizon, &wasCorrect, &tradeAllowed, &consensusActive, &consensusDirection, &modelDirectionsRaw); err != nil {
 			return nil, err
 		}
 		parsed, err := time.Parse(time.RFC3339Nano, target)
@@ -481,6 +489,13 @@ func (s *PredictionStore) resolvedEvaluations(symbol string) ([]evaluationRow, e
 			return nil, err
 		}
 		if !isPredictionTargetAligned(parsed) {
+			continue
+		}
+		var modelDirections map[string]string
+		if err := json.Unmarshal([]byte(modelDirectionsRaw), &modelDirections); err != nil {
+			return nil, err
+		}
+		if !isFiveModelConsensusDirections(consensusActive == 1, consensusDirection, modelDirections) {
 			continue
 		}
 		row.TargetCandleStart = parsed
@@ -584,6 +599,27 @@ func scanPredictionRow(scanner interface {
 
 func isPredictionTargetAligned(target time.Time) bool {
 	return !target.IsZero()
+}
+
+func isFiveModelConsensusRow(row predictionRow) bool {
+	return isFiveModelConsensusDirections(row.ConsensusActive, row.ConsensusDirection, row.ModelDirections)
+}
+
+func isFiveModelConsensusDirections(consensusActive bool, consensusDirection string, modelDirections map[string]string) bool {
+	if !consensusActive || (consensusDirection != "up" && consensusDirection != "down") {
+		return false
+	}
+	if len(modelDirections) < 5 {
+		return false
+	}
+	aligned := 0
+	for _, direction := range modelDirections {
+		if direction != consensusDirection {
+			return false
+		}
+		aligned++
+	}
+	return aligned >= 5
 }
 
 func (s *PredictionStore) resolvePrediction(symbol string, target time.Time, realizedDirection string, resolvedVolume float64) error {
@@ -714,16 +750,14 @@ func buildAccuracy(rows []predictionRow, evals []evaluationRow, recentWindow int
 				consensusWins++
 			}
 		}
-		if row.TradeAllowed {
+		if row.ConsensusActive {
 			tradeTotal++
 			if row.WasCorrect {
 				tradeWins++
 			}
-			if row.ConsensusActive {
-				consensusTradeTotal++
-				if row.WasCorrect {
-					consensusTradeWins++
-				}
+			consensusTradeTotal++
+			if row.WasCorrect {
+				consensusTradeWins++
 			}
 		}
 	}
@@ -816,7 +850,7 @@ func buildAccuracy(rows []predictionRow, evals []evaluationRow, recentWindow int
 	currentStep := 1
 
 	for _, row := range rows {
-		if !row.TradeAllowed {
+		if !row.ConsensusActive {
 			continue
 		}
 		stepAttempts[currentStep]++
@@ -894,7 +928,7 @@ func buildRecoveryWrongCandles(rows []predictionRow) []domain.RecoveryWrongCandl
 	currentStep := 1
 
 	for _, row := range rows {
-		if !row.TradeAllowed {
+		if !row.ConsensusActive {
 			continue
 		}
 		if currentStep >= 7 && !row.WasCorrect {
@@ -989,7 +1023,7 @@ func buildHourlyStatistics(rows []predictionRow, pendingRows []predictionRow) []
 			stats.WrongCount++
 			stats.WrongVolatilitySum += row.VolatilityScore
 		}
-		if row.TradeAllowed {
+		if row.ConsensusActive {
 			stats.TradeTotal++
 			tradeConfidenceSums[row.PredictionHourUTC] += row.ConfidenceScore
 			if row.WasCorrect {

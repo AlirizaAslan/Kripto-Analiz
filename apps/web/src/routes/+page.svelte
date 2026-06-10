@@ -77,7 +77,7 @@
 		if (summary.latestPrediction.tradeAction === 'buy') return 'AL';
 		if (summary.latestPrediction.tradeAction === 'sell') return 'SAT';
 		if (summary.latestPrediction.tradeAction === 'hold') return 'BEKLE';
-		return 'Islem yok';
+		return 'Bekleniyor';
 	}
 
 	function consensusAccuracyText(summary: AssetSummary) {
@@ -178,7 +178,7 @@
 					</div>
 				</div>
 
-				<p class="analysis">{topSummary.latestPrediction.tradeFilterReason || topSummary.latestPrediction.consensusSummary || 'Iki model ayni yone bakarsa ortak islem sinyali burada gosterilir.'}</p>
+				<p class="analysis">{topSummary.latestPrediction.tradeFilterReason || topSummary.latestPrediction.consensusSummary || 'Bes model ayni yone bakarsa ortak karar sinyali burada gosterilir.'}</p>
 				<p class="disclaimer">{overview.disclaimer}</p>
 			</article>
 
