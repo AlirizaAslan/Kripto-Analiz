@@ -234,29 +234,191 @@ def tlob_branch(features: dict[str, float]) -> tuple[float, float, list[dict]]:
     return score, probability, top_features
 
 
+def lightgbm_squeeze_branch(features: dict[str, float]) -> tuple[float, float, list[dict]]:
+    """LightGBM-style Squeeze branch: detects squeeze/liquidation pressure
+    using depth imbalance, volume spikes, and flow momentum."""
+    depth = features.get("depth_imbalance", 0.5)
+    flow = features.get("order_flow_imbalance", 0.5)
+    micro = features.get("microprice_bias", 0.0)
+    spread = features.get("spread_bps", 5.0)
+    book_pressure = features.get("book_pressure", 0.0)
+    volume_pulse = features.get("volume_pulse", 0.0)
+    realized_vol = features.get("realized_vol_8s", 0.3)
+    short_return = features.get("short_return_1m", features.get("short_return_1s", 0.0))
+
+    # Squeeze detection: strong imbalance + volume spike + momentum alignment
+    imbalance_signal = (depth - 0.5) * 2.0
+    flow_momentum = (flow - 0.5) * 2.0
+    squeeze_pressure = clamp(
+        imbalance_signal * flow_momentum * 1.6,  # cross-product amplifies aligned signals
+        -1.0,
+        1.0,
+    )
+
+    # Volume-weighted conviction: high volume + directional pressure = squeeze
+    volume_conviction = clamp(volume_pulse * 0.72 + abs(short_return) * 8.0, 0.0, 1.0)
+
+    score = clamp(
+        squeeze_pressure * 0.42
+        + imbalance_signal * 0.24
+        + flow_momentum * 0.18
+        + book_pressure * 0.32
+        + micro * 0.22
+        + short_return * 9.0
+        + volume_pulse * 0.28
+        - realized_vol * 0.38
+        - spread / 28
+        + squeeze_pressure * volume_conviction * 0.16,
+        -1.2,
+        1.2,
+    )
+    probability = probability_from_score(score, scale=2.25)
+    top_features = [
+        {
+            "name": "lgbm_squeeze_pressure",
+            "value": round_to(squeeze_pressure, 4),
+            "contribution": round_to(squeeze_pressure * 1.6, 2),
+            "summary": "Cross-product of depth imbalance and order flow detects squeeze buildup.",
+        },
+        {
+            "name": "lgbm_volume_conviction",
+            "value": round_to(volume_conviction, 4),
+            "contribution": round_to(volume_conviction * 0.8, 2),
+            "summary": "Volume spike combined with short return momentum confirms squeeze strength.",
+        },
+    ]
+    return score, probability, top_features
+
+
+def lob_transformer_spoofing_branch(features: dict[str, float]) -> tuple[float, float, list[dict]]:
+    """LOB-Transformer-style Spoofing branch: detects fake order walls
+    and manipulation patterns in the order book."""
+    bid_sizes = collect_levels(features, "bid_size")
+    ask_sizes = collect_levels(features, "ask_size")
+    level_imbalances = collect_levels(features, "level_imbalance")
+    spread = features.get("spread_bps", 5.0)
+    pressure_trend = features.get("depth_pressure_trend", 0.0)
+    book_pressure = features.get("book_pressure", 0.0)
+    volume_pulse = features.get("volume_pulse", 0.0)
+    micro = features.get("microprice_bias", 0.0)
+
+    total_bid = sum(bid_sizes)
+    total_ask = sum(ask_sizes)
+    total_book = total_bid + total_ask
+
+    # Wall detection: find abnormally large single-level concentration
+    bid_concentration = max(bid_sizes) / max(total_bid, 1.0) if total_bid > 0 else 0.0
+    ask_concentration = max(ask_sizes) / max(total_ask, 1.0) if total_ask > 0 else 0.0
+
+    # Spoofing indicator: one side has a massive wall but price moves opposite
+    # (real buyers don't stack huge visible walls, spoofs do)
+    bid_wall_spoof = clamp(bid_concentration - 0.35, 0.0, 0.65)  # abnormal bid wall
+    ask_wall_spoof = clamp(ask_concentration - 0.35, 0.0, 0.65)  # abnormal ask wall
+
+    # Level variance: spoofed books tend to be very uneven across levels
+    bid_variance = 0.0
+    ask_variance = 0.0
+    if len(bid_sizes) >= 3 and total_bid > 0:
+        bid_mean = total_bid / len(bid_sizes)
+        bid_variance = sum((s - bid_mean) ** 2 for s in bid_sizes) / len(bid_sizes)
+        bid_variance = clamp(bid_variance / max(bid_mean ** 2, 1.0), 0.0, 2.0)
+    if len(ask_sizes) >= 3 and total_ask > 0:
+        ask_mean = total_ask / len(ask_sizes)
+        ask_variance = sum((s - ask_mean) ** 2 for s in ask_sizes) / len(ask_sizes)
+        ask_variance = clamp(ask_variance / max(ask_mean ** 2, 1.0), 0.0, 2.0)
+
+    # Fake wall logic: if bid wall is spoofed, real direction is likely DOWN
+    # if ask wall is spoofed, real direction is likely UP
+    spoof_signal = clamp(
+        (ask_wall_spoof - bid_wall_spoof) * 2.4  # spoof reversal
+        + (ask_variance - bid_variance) * 0.38,    # uneven book = manipulation
+        -1.0,
+        1.0,
+    )
+
+    # Weighted imbalance check (ignoring spoofed levels)
+    weights = [1.0, 0.88, 0.74, 0.58, 0.44, 0.3]
+    clean_imbalance = weighted_average(level_imbalances, weights)
+
+    # Combine: genuine depth signal + spoof reversal + trend confirmation
+    score = clamp(
+        clean_imbalance * 0.34
+        + spoof_signal * 0.28
+        + pressure_trend * 0.22
+        + book_pressure * 0.18
+        + micro * 0.16
+        + volume_pulse * 0.12
+        - spread / 32
+        - (bid_wall_spoof + ask_wall_spoof) * 0.14,  # penalize any wall presence (uncertainty)
+        -1.2,
+        1.2,
+    )
+    probability = probability_from_score(score, scale=2.1)
+    top_features = [
+        {
+            "name": "lobt_spoof_signal",
+            "value": round_to(spoof_signal, 4),
+            "contribution": round_to(spoof_signal * 1.4, 2),
+            "summary": "Detects fake order walls; positive means ask-side spoofing (bullish reversal).",
+        },
+        {
+            "name": "lobt_wall_concentration",
+            "value": round_to(max(bid_concentration, ask_concentration), 4),
+            "contribution": round_to((bid_wall_spoof + ask_wall_spoof) * -0.7, 2),
+            "summary": "Single-level order concentration; high values indicate potential manipulation.",
+        },
+    ]
+    return score, probability, top_features
+
+
 def predict(features: dict[str, float], model: str) -> dict:
     depth = features.get("depth_imbalance", 0.5)
     flow = features.get("order_flow_imbalance", 0.5)
     micro = features.get("microprice_bias", 0.0)
     spread = features.get("spread_bps", 5.0)
+    trend_15m_slope = features.get("trend_15m_slope", 0.0)
+    distance_to_ema_1h = features.get("distance_to_ema_1h", 0.0)
+    vwap_distance_bps = features.get("vwap_distance_bps", 0.0)
     signal_quality = "full_depth" if features.get("bid_size_1", 0.0) > 0 and features.get("ask_size_1", 0.0) > 0 else "degraded"
-    deeplob_weight = 0.5 if signal_quality == "full_depth" else 0.34
-    freqai_weight = 0.3
-    tlob_weight = 0.2 if signal_quality == "full_depth" else 0.36
+
+    # 5-model weights
+    if signal_quality == "full_depth":
+        deeplob_weight = 0.28
+        freqai_weight = 0.22
+        tlob_weight = 0.18
+        lgbm_weight = 0.18
+        lobt_weight = 0.14
+    else:
+        deeplob_weight = 0.20
+        freqai_weight = 0.22
+        tlob_weight = 0.22
+        lgbm_weight = 0.20
+        lobt_weight = 0.16
 
     deeplob_score, deeplob_probability, deeplob_features = deeplob_branch(features)
     freqai_score, freqai_probability, freqai_features = freqai_branch(features)
     tlob_score, tlob_probability, tlob_features = tlob_branch(features)
+    lgbm_score, lgbm_probability, lgbm_features = lightgbm_squeeze_branch(features)
+    lobt_score, lobt_probability, lobt_features = lob_transformer_spoofing_branch(features)
+
     deeplob_direction = component_direction(deeplob_score, deeplob_probability)
     freqai_direction = component_direction(freqai_score, freqai_probability)
     tlob_direction = component_direction(tlob_score, tlob_probability)
+    lgbm_direction = component_direction(lgbm_score, lgbm_probability)
+    lobt_direction = component_direction(lobt_score, lobt_probability)
+
     deeplob_hit_rate, deeplob_recent_win_rate = directional_rates(deeplob_direction)
     freqai_hit_rate, freqai_recent_win_rate = directional_rates(freqai_direction)
     tlob_hit_rate, tlob_recent_win_rate = directional_rates(tlob_direction)
+    lgbm_hit_rate, lgbm_recent_win_rate = directional_rates(lgbm_direction)
+    lobt_hit_rate, lobt_recent_win_rate = directional_rates(lobt_direction)
+
     ensemble_score = (
         deeplob_score * deeplob_weight
         + freqai_score * freqai_weight
         + tlob_score * tlob_weight
+        + lgbm_score * lgbm_weight
+        + lobt_score * lobt_weight
     )
 
     up = clamp(
@@ -264,6 +426,8 @@ def predict(features: dict[str, float], model: str) -> dict:
         + deeplob_probability * deeplob_weight * 0.62
         + freqai_probability * freqai_weight * 0.66
         + tlob_probability * tlob_weight * 0.58
+        + lgbm_probability * lgbm_weight * 0.64
+        + lobt_probability * lobt_weight * 0.60
         + max(micro, 0) * 0.03,
         0.06,
         0.9,
@@ -273,6 +437,8 @@ def predict(features: dict[str, float], model: str) -> dict:
         + (1 - deeplob_probability) * deeplob_weight * 0.58
         + (1 - freqai_probability) * freqai_weight * 0.62
         + (1 - tlob_probability) * tlob_weight * 0.56
+        + (1 - lgbm_probability) * lgbm_weight * 0.60
+        + (1 - lobt_probability) * lobt_weight * 0.58
         + max(-micro, 0) * 0.03,
         0.06,
         0.9,
@@ -299,6 +465,8 @@ def predict(features: dict[str, float], model: str) -> dict:
         deeplob_features
         + freqai_features
         + tlob_features
+        + lgbm_features
+        + lobt_features
         + [
             {
                 "name": "order_flow_imbalance",
@@ -339,12 +507,13 @@ def predict(features: dict[str, float], model: str) -> dict:
         ],
         key=lambda item: abs(item["contribution"]),
         reverse=True,
-    )[:5]
+    )[:7]
 
     explanation = (
-        "The next 1-minute candle is scored by a DeepLOB-style depth branch over the first six book levels "
-        "and a FreqAI-style feature branch over order flow, microprice, spread, and short-horizon volatility. "
-        "Wider spreads and noisier microstructure reduce confidence."
+        "The next 1-minute candle is scored by five ensemble branches: "
+        "DeepLOB depth analysis, FreqAI order-flow features, TLOB temporal persistence, "
+        "LightGBM squeeze detection, and LOB-Transformer spoofing detection. "
+        "All five models must agree on direction for a trade signal to be emitted."
     )
     predicted_direction = summarize_direction(up, down, neutral)
 
@@ -358,7 +527,7 @@ def predict(features: dict[str, float], model: str) -> dict:
         "signalLabel": signal_label(ensemble_score),
         "signalQuality": signal_quality,
         "historicalHitRate": round_to(clamp(0.5 + abs(ensemble_score) / 2 - volatility_proxy / 8, 0.45, 0.81), 4),
-        "modelVersion": model or "deeplob-freqai-tlob-ensemble-1m-v3",
+        "modelVersion": model or "deeplob-freqai-tlob-lgbm-lobt-ensemble-1m-v4",
         "explanation": explanation + " Macro trend, EMA distance, and VWAP offset are used as a stricter filter against fading strong directional regimes.",
         "modelComponents": [
             {
@@ -391,8 +560,28 @@ def predict(features: dict[str, float], model: str) -> dict:
                 "recentWinRate": tlob_recent_win_rate,
                 "summary": "Scores temporal persistence across order-book pressure, microprice drift, and volatility.",
             },
+            {
+                "name": "LightGBM squeeze branch",
+                "weight": round_to(lgbm_weight, 4),
+                "score": round_to(lgbm_score, 4),
+                "probability": round_to(lgbm_probability, 4),
+                "predictedDirection": lgbm_direction,
+                "historicalHitRate": lgbm_hit_rate,
+                "recentWinRate": lgbm_recent_win_rate,
+                "summary": "Detects squeeze and liquidation pressure via depth-flow cross signals and volume conviction.",
+            },
+            {
+                "name": "LOB-Transformer spoofing branch",
+                "weight": round_to(lobt_weight, 4),
+                "score": round_to(lobt_score, 4),
+                "probability": round_to(lobt_probability, 4),
+                "predictedDirection": lobt_direction,
+                "historicalHitRate": lobt_hit_rate,
+                "recentWinRate": lobt_recent_win_rate,
+                "summary": "Detects fake order walls and manipulation patterns in the order book depth.",
+            },
         ],
-        "topFeatures": top_features + tlob_features[:1],
+        "topFeatures": top_features,
     }
 
 
